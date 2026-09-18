@@ -1,0 +1,39 @@
+{
+  "request": {
+    "state": "--- a/src/auth.ts\n+++ b/src/auth.ts\n@@ -10,6 +10,7 @@\n export function login(u: string, p: string) {\n-  return api.post('/login', { u, p });\n+  return api.post('/login', { u, p, source: 'web' });\n }",
+    "model": "jev-latest",
+    "questions": {
+      "has_bug": { "type": "noul", "instructions": "Does this diff contain a bug?" },
+      "risk": {
+        "type": "score",
+        "instructions": "How risky is this diff?",
+        "criteria": ["trivial", "low", "moderate", "high", "critical"]
+      },
+      "category": {
+        "type": "choice",
+        "instructions": "What category is this change?",
+        "criteria": { "feature": null, "bugfix": null, "refactor": null, "other": null }
+      }
+    }
+  },
+  "response": {
+    "model": "jev-latest",
+    "answers": {
+      "has_bug": { "type": "noul", "noul": 0.03 },
+      "risk": {
+        "type": "score",
+        "score": 0.4,
+        "confidence": 0.85,
+        "legend": { "0": "trivial", "1": "low", "2": "moderate", "3": "high", "4": "critical" },
+        "probabilities": { "0": 0.6, "1": 0.4, "2": 0, "3": 0, "4": 0 }
+      },
+      "category": {
+        "type": "choice",
+        "choice": "refactor",
+        "confidence": 0.9,
+        "probabilities": { "feature": 0.05, "bugfix": 0.03, "refactor": 0.9, "other": 0.02 }
+      }
+    },
+    "usage": { "input_tokens": 512, "output_tokens": 40 }
+  }
+}
