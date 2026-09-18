@@ -51,3 +51,9 @@ export interface CollectOptions {
   /** Replaces the built-in default glob list when provided. */
   ignoreGlobs?: string[];
 }
+
+export interface PrMeta {
+  title: string;
+  body: string;
+  filenames: string[];
+}

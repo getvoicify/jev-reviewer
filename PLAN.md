@@ -64,7 +64,11 @@ Per chunk (state = diff chunk; per file when small):
 - `needs_tests`: **noul** — "Does this diff need test coverage?"
 - `security_sensitive`: **noul** — auth, secrets, input validation, unsafe parsing
 - `category`: **choice** — feature / bugfix / refactor / docs / config / other
-- `review_verdict`: **choice** — approve / comment / request_changes
+
+> Deviation (2025-09-18): the originally planned `review_verdict` choice is DROPPED.
+> The docs doctrine says never ask one composite judgment ("what should the review
+> say?"); composition belongs in code. Verdicts are computed from risk score + noul
+> thresholds in `src/review.ts`.
 
 PR-level (state = title + body + filenames):
 
@@ -115,7 +119,7 @@ scripts/build.ts         # bun build → dist/index.js
 
 1. **Scaffold & client** — git init, deps (`@typesafe-ai/sdk`, `@actions/core`, `@actions/github`, `octokit`), `client.systemOne` wrapper, fixture-recorded tests. ✅ gate: `bun test` green, no network in tests.
 2. **Collect & chunk** — pull diff via octokit, truncate to budget, chunking, ignore-paths. ✅ gate: unit tests for truncation/glob behavior.
-3. **Questions & compose** — question set, findings mapping, verdict + severity logic, confidence gating. ✅ gate: tests assert thresholds on recorded answers (incl. low-confidence suppression).
+3. **Questions & compose** — question set, findings mapping, verdict + severity logic, confidence gating. ✅ DONE (commit `M3`): 52 tests total, threshold behavior incl. low-confidence suppression asserted on recorded answers. `review_verdict` question dropped (composition in code, per docs doctrine).
 4. **GitHub integration** — comment, check-run with chunk-range annotations, `fail-on`, outputs. ✅ gate: full run against a fixture PR payload (mock octokit), annotations capped (50/create-or-patch call, 1000/run) and referencing correct head-file line ranges.
 5. **Ship & docs** — `scripts/build.ts`, commit `dist/` (gitignore negation in place), README (usage, example workflow, secrets setup, required `pull-requests: write` + `checks: write` permissions), local run docs (`act`, or `bun run index.ts` with env). ✅ gate: `bun build` output runs on node20 with a real key against a real PR.
 
