@@ -1,0 +1,50 @@
+diff --git a/package.json b/package.json
+index abc1234..def5678 100644
+--- a/package.json
++++ b/package.json
+@@ -1,4 +1,4 @@
+ {
+-  "version": "1.0.0",
++  "version": "1.1.0",
+   "name": "app"
+ }
+diff --git a/src/auth.ts b/src/auth.ts
+index 1111111..2222222 100644
+--- a/src/auth.ts
++++ b/src/auth.ts
+@@ -10,6 +10,7 @@ export function login
+ export function login(u: string, p: string) {
+-  return api.post('/login', { u, p });
++  return api.post('/login', { u, p, source: 'web' });
+ }
+diff --git a/src/new.ts b/src/new.ts
+new file mode 100644
+index 0000000..3333333
+--- /dev/null
++++ b/src/new.ts
+@@ -0,0 +1,3 @@
++export const x = 1;
++export const y = 2;
++export const z = 3;
+diff --git a/src/gone.ts b/src/gone.ts
+deleted file mode 100644
+index 4444444..0000000
+--- a/src/gone.ts
++++ /dev/null
+@@ -1,2 +0,0 @@
+-export const gone = true;
+-export const alsoGone = true;
+diff --git a/renamed.ts b/moved.ts
+similarity index 100%
+rename from renamed.ts
+rename to moved.ts
+diff --git a/asset.bin b/asset.bin
+index 5555555..6666666 100644
+Binary files a/asset.bin and b/asset.bin differ
+diff --git a/yarn.lock b/yarn.lock
+index 7777777..8888888 100644
+--- a/yarn.lock
++++ b/yarn.lock
+@@ -1,2 +1,2 @@
+-version 1
++version 2
