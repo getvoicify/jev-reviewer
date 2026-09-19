@@ -1,10 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import { collectDiff } from "../src/collect";
-import type { GitHubPort } from "../src/github";
+import type { DiffSource } from "../src/github";
 
 const fixturePath = `${import.meta.dir}/fixtures/pr-diff.diff`;
 
-function stubGitHub(diff: string): GitHubPort {
+function stubGitHub(diff: string): DiffSource {
   return {
     async getPullDiff(_owner, _repo, _pullNumber) {
       return diff;

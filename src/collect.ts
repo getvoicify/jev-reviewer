@@ -1,7 +1,7 @@
 import picomatch from "picomatch";
 import { chunkFile } from "./chunk";
 import { parseUnifiedDiff } from "./diffparse";
-import type { GitHubPort } from "./github";
+import type { DiffSource } from "./github";
 import type { CollectOptions, CollectResult, DiffChunk, SkippedFile } from "./types";
 
 /** Built-in default ignore list; replaced entirely when `ignoreGlobs` is provided. */
@@ -32,7 +32,7 @@ const DEFAULTS = {
  * so a review never comes back empty for a slightly-too-big diff.
  */
 export async function collectDiff(
-  github: GitHubPort,
+  github: DiffSource,
   options: CollectOptions,
 ): Promise<CollectResult> {
   const maxFiles = options.maxFiles ?? DEFAULTS.maxFiles;

@@ -1,0 +1,63 @@
+name: Jev PR Review
+description: >-
+  Automated PR review with Jev, TypeSafe's System One model.
+  Advisory by default; opt into blocking with fail-on.
+author: voicify
+
+inputs:
+  typesafe-api-key:
+    description: >-
+      TypeSafe API key. Falls back to the TYPESAFE_API_KEY
+      environment variable.
+    required: false
+  github-token:
+    description: >-
+      GitHub token with pull-requests:write and checks:write
+      permissions.
+    required: true
+    default: ${{ github.token }}
+  model:
+    description: TypeSafe model alias.
+    required: false
+    default: jev-latest
+  comment:
+    description: Post a PR comment with the review.
+    required: false
+    default: "true"
+  fail-on:
+    description: >-
+      Minimum finding severity that fails the workflow.
+      none, low, moderate, high, or critical.
+    required: false
+    default: "none"
+  min-confidence:
+    description: Minimum certainty (0-1) for a finding to be reported.
+    required: false
+    default: "0.6"
+  max-files:
+    description: Maximum number of files reviewed, in filename order.
+    required: false
+    default: "40"
+  max-chunk-chars:
+    description: Maximum characters per review chunk.
+    required: false
+    default: "8000"
+  ignore-paths:
+    description: >-
+      Newline-separated globs to skip. Replaces the built-in
+      defaults (lockfiles, dist/, build/, coverage/, generated/).
+    required: false
+
+outputs:
+  findings-json:
+    description: >-
+      Structured review result (chunks, PR-level findings, verdict)
+      as JSON.
+  verdict:
+    description: approve | comment | request_changes
+  highest-severity:
+    description: none | trivial | low | moderate | high | critical
+
+runs:
+  using: node20
+  main: dist/index.js
