@@ -69,7 +69,7 @@ function stubPorts(
     async getPr() {
       return PR_DETAILS;
     },
-    async createComment(_owner, _repo, _pullNumber, body) {
+    async upsertComment(_owner, _repo, _pullNumber, body) {
       log.comments.push(body);
     },
     async createCheckRun(_owner, _repo, params) {
@@ -194,7 +194,7 @@ describe("runApp", () => {
       async getPr() {
         return PR_DETAILS;
       },
-      async createComment() {},
+      async upsertComment() {},
       async createCheckRun() {},
     };
     const jev: JevPort = {

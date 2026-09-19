@@ -69,7 +69,7 @@ export async function runApp(deps: AppDeps): Promise<void> {
 
   const fail = shouldFail(review, config.failOn);
   if (config.comment) {
-    await githubPort.createComment(
+    await githubPort.upsertComment(
       context.owner,
       context.repo,
       context.prNumber,

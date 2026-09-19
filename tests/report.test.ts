@@ -136,6 +136,7 @@ describe("buildComment", () => {
       failOn: "none",
     });
 
+    expect(comment.startsWith("<!-- jev-review -->")).toBe(true);
     expect(comment).toContain("request_changes");
     expect(comment).toContain("src/a.ts");
     expect(comment).toContain("bug");

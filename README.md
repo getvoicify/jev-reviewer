@@ -16,7 +16,7 @@ annotations; it only fails the workflow when you opt in via `fail-on`.
    (breaking change?, release-notes-worthy?).
 3. **Compose** — findings and the verdict are computed **in code** from typed probabilities,
    gated by a minimum-confidence threshold. No prompt engineering of composite judgments.
-4. **Report** — PR comment, check run with chunk-range annotations, optional CI gate.
+4. **Report** — PR comment (created on the first run, updated in place on re-reviews via a hidden `<!-- jev-review -->` marker), check run with chunk-range annotations, optional CI gate.
 
 ## Usage
 

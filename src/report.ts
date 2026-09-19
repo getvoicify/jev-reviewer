@@ -12,6 +12,13 @@ export interface Annotation {
   message: string;
 }
 
+/**
+ * Hidden marker embedded in every review comment; GitHubClient uses it to
+ * find this action's previous comment on the PR so re-reviews update it
+ * instead of piling up new comments.
+ */
+export const COMMENT_MARKER = "<!-- jev-review -->";
+
 const SEVERITY_RANK: Record<Severity, number> = {
   trivial: 0,
   low: 1,
@@ -79,7 +86,7 @@ export function buildComment(
   truncated: boolean,
   opts: { model: string; failOn: FailOn },
 ): string {
-  const lines: string[] = ["## 🤖 Jev review", ""];
+  const lines: string[] = [COMMENT_MARKER, "## 🤖 Jev review", ""];
   lines.push(`**Verdict:** ${review.verdict} · \`${opts.model}\` · fail-on: ${opts.failOn}`);
   lines.push("");
 

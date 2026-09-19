@@ -1,5 +1,5 @@
 import type { Octokit } from "octokit";
-import { type Annotation, batchAnnotations } from "./report";
+import { type Annotation, batchAnnotations, COMMENT_MARKER } from "./report";
 
 export interface PrDetails {
   number: number;
@@ -22,13 +22,25 @@ export interface DiffSource {
 
 export interface GitHubPort extends DiffSource {
   getPr(owner: string, repo: string, pullNumber: number): Promise<PrDetails>;
-  createComment(owner: string, repo: string, pullNumber: number, body: string): Promise<void>;
+  /** Creates the review comment on first run, updates it on re-reviews. */
+  upsertComment(owner: string, repo: string, pullNumber: number, body: string): Promise<void>;
   createCheckRun(owner: string, repo: string, params: CheckRunParams): Promise<void>;
 }
 
 const CHECK_NAME = "jev-review";
 const CHECK_TITLE = "Jev PR review";
 const ANNOTATION_BATCH_SIZE = 50;
+
+/** Returns the id of the first comment carrying the marker, or null. */
+export function selectUpsertTarget(
+  comments: Array<{ id: number; body?: string | null }>,
+  marker: string,
+): number | null {
+  for (const comment of comments) {
+    if (comment.body?.includes(marker)) return comment.id;
+  }
+  return null;
+}
 
 export class GitHubClient implements GitHubPort {
   readonly #octokit: Octokit;
@@ -60,13 +72,30 @@ export class GitHubClient implements GitHubPort {
     };
   }
 
-  async createComment(
+  async upsertComment(
     owner: string,
     repo: string,
     pullNumber: number,
     body: string,
   ): Promise<void> {
-    await this.#octokit.rest.issues.createComment({ owner, repo, issue_number: pullNumber, body });
+    const comments = await this.#octokit.paginate(this.#octokit.rest.issues.listComments, {
+      owner,
+      repo,
+      issue_number: pullNumber,
+    });
+    const existingId = selectUpsertTarget(comments, COMMENT_MARKER);
+    if (existingId === null) {
+      await this.#octokit.rest.issues.createComment({
+        owner,
+        repo,
+        issue_number: pullNumber,
+        body,
+      });
+      return;
+    }
+    const existing = comments.find((comment) => comment.id === existingId);
+    if (existing?.body === body) return; // identical re-run; save an API call
+    await this.#octokit.rest.issues.updateComment({ owner, repo, comment_id: existingId, body });
   }
 
   async createCheckRun(owner: string, repo: string, params: CheckRunParams): Promise<void> {
