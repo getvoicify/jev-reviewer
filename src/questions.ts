@@ -23,6 +23,13 @@ export function buildChunkQuestions() {
         false: "The diff is unrelated to security",
       },
     ),
+    security_weakness: noul(
+      "Does `state.diff` introduce or worsen a security weakness, such as a bypass, a leak, or an unsafe parse?",
+      {
+        true: "The diff weakens a security property or exposes a vulnerability",
+        false: "The diff is security-neutral or strengthens security",
+      },
+    ),
     category: choice("What kind of change is `state.diff`?", {
       feature: "Adds new capability",
       bugfix: "Fixes a defect",

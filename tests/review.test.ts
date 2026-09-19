@@ -24,6 +24,7 @@ function answers(overrides: Partial<ChunkAnswers> = {}): ChunkAnswers {
     has_bug: { type: "noul", noul: 0.05 },
     needs_tests: { type: "noul", noul: 0.05 },
     security_sensitive: { type: "noul", noul: 0.05 },
+    security_weakness: { type: "noul", noul: 0.05 },
     category: { type: "choice", choice: "refactor", confidence: 0.9 },
     ...overrides,
   };
@@ -97,11 +98,11 @@ describe("reviewChunk", () => {
     expect(review.findings).toEqual([]);
   });
 
-  test("security signal becomes a finding with at least high severity", () => {
+  test("a security weakness becomes a blocking finding with at least high severity", () => {
     const review = reviewChunk(
       CHUNK,
       answers({
-        security_sensitive: { type: "noul", noul: 0.92 },
+        security_weakness: { type: "noul", noul: 0.92 },
         risk: { type: "score", score: 1, confidence: 0.9 },
       }),
       DEFAULT_POLICY,
@@ -116,6 +117,55 @@ describe("reviewChunk", () => {
       range: { start: 10, end: 20 },
     });
     expect(review.findings[0]?.confidence).toBeCloseTo(0.84);
+  });
+
+  test("security sensitivity alone comments without blocking", () => {
+    const review = reviewChunk(
+      CHUNK,
+      answers({ security_sensitive: { type: "noul", noul: 0.9 } }),
+      DEFAULT_POLICY,
+    );
+
+    // Touching security-sensitive code earns attention (comment) and the high
+    // severity the triage token reads, but never a request_changes on its own —
+    // only a weakness, a bug, or the risk score may block.
+    expect(review.verdict).toBe("comment");
+    expect(review.findings).toHaveLength(1);
+    expect(review.findings[0]).toMatchObject({
+      kind: "security_sensitive",
+      severity: "high",
+      file: "src/a.ts",
+      range: { start: 10, end: 20 },
+    });
+    expect(review.findings[0]?.confidence).toBeCloseTo(0.8);
+  });
+
+  test("sensitivity stays triage-only even when certainty is very high", () => {
+    const review = reviewChunk(
+      CHUNK,
+      answers({ security_sensitive: { type: "noul", noul: 0.99 } }),
+      DEFAULT_POLICY,
+    );
+
+    expect(review.verdict).toBe("comment");
+    expect(review.findings[0]?.kind).toBe("security_sensitive");
+  });
+
+  test("a sensitive diff with a genuine weakness still blocks", () => {
+    const review = reviewChunk(
+      CHUNK,
+      answers({
+        security_sensitive: { type: "noul", noul: 0.9 },
+        security_weakness: { type: "noul", noul: 0.9 },
+      }),
+      DEFAULT_POLICY,
+    );
+
+    expect(review.verdict).toBe("request_changes");
+    expect(review.findings.map((finding) => finding.kind)).toEqual([
+      "security",
+      "security_sensitive",
+    ]);
   });
 
   test("needs_tests on a feature adds a low-severity finding", () => {
@@ -193,11 +243,11 @@ describe("reviewChunk", () => {
     expect(block.verdict).toBe("request_changes");
   });
 
-  test("severity of security findings scales to critical with high risk", () => {
+  test("severity of weakness findings scales to critical with high risk", () => {
     const review = reviewChunk(
       CHUNK,
       answers({
-        security_sensitive: { type: "noul", noul: 0.9 },
+        security_weakness: { type: "noul", noul: 0.9 },
         risk: { type: "score", score: 4, confidence: 0.9 },
       }),
       DEFAULT_POLICY,

@@ -2,7 +2,7 @@ import type { DiffChunk } from "./types";
 
 export type Verdict = "approve" | "comment" | "request_changes";
 export type Severity = "trivial" | "low" | "moderate" | "high" | "critical";
-export type FindingKind = "bug" | "security" | "missing_tests";
+export type FindingKind = "bug" | "security" | "security_sensitive" | "missing_tests";
 
 export interface Finding {
   kind: FindingKind;
@@ -43,7 +43,10 @@ export interface ChunkAnswers {
   risk: { type: "score"; score: number; confidence: number };
   has_bug: { type: "noul"; noul: number };
   needs_tests: { type: "noul"; noul: number };
+  /** Triage signal: the diff touches security-relevant code. Never blocks. */
   security_sensitive: { type: "noul"; noul: number };
+  /** Blocking signal: the diff introduces or worsens a security weakness. */
+  security_weakness: { type: "noul"; noul: number };
   category: { type: "choice"; choice: string; confidence: number };
 }
 
@@ -109,7 +112,8 @@ export function reviewChunk(
 ): ChunkReview {
   const findings: Finding[] = [];
   const bugCertainty = certainty(answers.has_bug.noul);
-  const securityCertainty = certainty(answers.security_sensitive.noul);
+  const weaknessCertainty = certainty(answers.security_weakness.noul);
+  const sensitiveCertainty = certainty(answers.security_sensitive.noul);
   const testsCertainty = certainty(answers.needs_tests.noul);
   const risk = answers.risk.score;
 
@@ -123,13 +127,28 @@ export function reviewChunk(
     });
   }
   if (
-    securityCertainty >= policy.minConfidence &&
-    answers.security_sensitive.noul >= policy.securityThreshold
+    weaknessCertainty >= policy.minConfidence &&
+    answers.security_weakness.noul >= policy.securityThreshold
   ) {
     findings.push({
       kind: "security",
       severity: riskToSeverity(Math.max(risk, 3)),
-      confidence: securityCertainty,
+      confidence: weaknessCertainty,
+      file: chunk.file,
+      range: chunk.range,
+    });
+  }
+  if (
+    sensitiveCertainty >= policy.minConfidence &&
+    answers.security_sensitive.noul >= policy.securityThreshold
+  ) {
+    // Sensitivity is triage, not a flaw: it carries the high severity the
+    // triage token (and downstream gates like tutela's DeepSeek escalation)
+    // read, but it is excluded from fail-on and can never block on its own.
+    findings.push({
+      kind: "security_sensitive",
+      severity: "high",
+      confidence: sensitiveCertainty,
       file: chunk.file,
       range: chunk.range,
     });
@@ -150,8 +169,11 @@ export function reviewChunk(
 
   const bugBlocks =
     bugCertainty >= policy.minConfidence && answers.has_bug.noul >= policy.bugThreshold;
-  const securityBlocks =
-    securityCertainty >= policy.minConfidence &&
+  const weaknessBlocks =
+    weaknessCertainty >= policy.minConfidence &&
+    answers.security_weakness.noul >= policy.securityThreshold;
+  const sensitiveFlagged =
+    sensitiveCertainty >= policy.minConfidence &&
     answers.security_sensitive.noul >= policy.securityThreshold;
   const testsFlagged =
     CODE_CATEGORIES.has(answers.category.choice) &&
@@ -159,8 +181,8 @@ export function reviewChunk(
     answers.needs_tests.noul >= policy.testsThreshold;
 
   let verdict: Verdict = "approve";
-  if (bugBlocks || securityBlocks || risk >= policy.blockRisk) verdict = "request_changes";
-  else if (risk >= policy.commentRisk || testsFlagged) verdict = "comment";
+  if (bugBlocks || weaknessBlocks || risk >= policy.blockRisk) verdict = "request_changes";
+  else if (risk >= policy.commentRisk || testsFlagged || sensitiveFlagged) verdict = "comment";
 
   return { file: chunk.file, range: chunk.range, verdict, findings };
 }

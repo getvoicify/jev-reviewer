@@ -5,6 +5,7 @@ import {
   buildAnnotations,
   buildComment,
   buildSummary,
+  highestBlockingSeverity,
   highestSeverity,
   shouldFail,
 } from "../src/report";
@@ -120,12 +121,51 @@ describe("shouldFail", () => {
     expect(shouldFail(review(1, "critical"), "none")).toBe(false);
   });
 
-  test("fails when the highest severity meets the threshold", () => {
+  test("fails when the highest blocking severity meets the threshold", () => {
     expect(shouldFail(review(1, "low"), "low")).toBe(true);
     expect(shouldFail(review(1, "moderate"), "low")).toBe(true);
     expect(shouldFail(review(1, "low"), "moderate")).toBe(false);
     expect(shouldFail(review(1, "high"), "critical")).toBe(false);
     expect(shouldFail(review(0, "low"), "low")).toBe(false);
+  });
+
+  test("sensitivity findings never fail the check, whatever the threshold", () => {
+    const sensitive = review(0, "low");
+    sensitive.chunks[0]?.findings.push({
+      kind: "security_sensitive",
+      severity: "high",
+      confidence: 0.8,
+      file: "src/a.ts",
+      range: { start: 10, end: 20 },
+    });
+    expect(shouldFail(sensitive, "low")).toBe(false);
+    expect(shouldFail(sensitive, "high")).toBe(false);
+    expect(shouldFail(sensitive, "critical")).toBe(false);
+  });
+
+  test("highestSeverity still reports sensitivity for triage while blocking severity ignores it", () => {
+    const sensitive = review(0, "low");
+    sensitive.chunks[0]?.findings.push({
+      kind: "security_sensitive",
+      severity: "high",
+      confidence: 0.8,
+      file: "src/a.ts",
+      range: { start: 10, end: 20 },
+    });
+    expect(highestSeverity(sensitive)).toBe("high");
+    expect(highestBlockingSeverity(sensitive)).toBe("none");
+  });
+
+  test("a real weakness still fails alongside a sensitivity flag", () => {
+    const mixed = review(1, "high");
+    mixed.chunks[0]?.findings.push({
+      kind: "security_sensitive",
+      severity: "high",
+      confidence: 0.8,
+      file: "src/a.ts",
+      range: { start: 10, end: 20 },
+    });
+    expect(shouldFail(mixed, "high")).toBe(true);
   });
 });
 

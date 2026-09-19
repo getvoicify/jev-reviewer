@@ -8,7 +8,7 @@ import {
 import type { DiffChunk } from "../src/types";
 
 describe("question builders", () => {
-  test("chunk questions use the five atomic judgments", () => {
+  test("chunk questions use the six atomic judgments", () => {
     const questions = buildChunkQuestions();
     expect(Object.keys(questions).sort()).toEqual([
       "category",
@@ -16,6 +16,7 @@ describe("question builders", () => {
       "needs_tests",
       "risk",
       "security_sensitive",
+      "security_weakness",
     ]);
   });
 
@@ -47,11 +48,29 @@ describe("question builders", () => {
 
   test("noul questions carry non-empty instructions", () => {
     const questions = buildChunkQuestions();
-    for (const id of ["has_bug", "needs_tests", "security_sensitive"] as const) {
+    for (const id of [
+      "has_bug",
+      "needs_tests",
+      "security_sensitive",
+      "security_weakness",
+    ] as const) {
       expect(questions[id].type).toBe("noul");
       expect(questions[id].instructions).toBeTypeOf("string");
       expect((questions[id].instructions as string).length).toBeGreaterThan(0);
     }
+  });
+
+  test("the security questions split sensitivity from weakness", () => {
+    const questions = buildChunkQuestions();
+    // Sensitivity asks whether the diff TOUCHES security-relevant code (a
+    // triage signal); weakness asks whether it INTRODUCES a security problem
+    // (a blocking signal). If the two ever collapse into one wording, the
+    // whole sensitivity/weakness split silently reverts.
+    expect(questions.security_sensitive.instructions).toContain("touch");
+    expect(questions.security_weakness.instructions).toContain("weakness");
+    expect(questions.security_sensitive.instructions).not.toBe(
+      questions.security_weakness.instructions,
+    );
   });
 
   test("pr questions are the two noul judgments", () => {

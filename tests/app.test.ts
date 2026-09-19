@@ -29,6 +29,7 @@ const BUGGY_CHUNK = {
     has_bug: { type: "noul", noul: 0.95 },
     needs_tests: { type: "noul", noul: 0.05 },
     security_sensitive: { type: "noul", noul: 0.05 },
+    security_weakness: { type: "noul", noul: 0.05 },
     category: { type: "choice", choice: "bugfix", confidence: 0.9 },
   },
   usage: { input_tokens: 10, output_tokens: 5 },

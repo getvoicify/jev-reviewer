@@ -1,5 +1,5 @@
 import type { FailOn } from "./config";
-import type { ReviewResult, Severity } from "./review";
+import type { FindingKind, ReviewResult, Severity } from "./review";
 import type { SkippedFile } from "./types";
 
 /** Shape accepted by the GitHub checks API `annotations` field. */
@@ -45,7 +45,11 @@ export function buildAnnotations(review: ReviewResult, max = 1000): Annotation[]
       start_line: finding.range.start,
       end_line: finding.range.end,
       annotation_level:
-        finding.severity === "low" || finding.severity === "trivial" ? "notice" : "warning",
+        finding.kind === "security_sensitive" ||
+        finding.severity === "low" ||
+        finding.severity === "trivial"
+          ? "notice"
+          : "warning",
       title: `${finding.kind} (${finding.severity})`,
       message: `${finding.kind} with ${finding.severity} severity, ${Math.round(finding.confidence * 100)}% certainty`,
     });
@@ -73,9 +77,28 @@ export function highestSeverity(review: ReviewResult): Severity | "none" {
   return best;
 }
 
+/** Findings that may fail the check; sensitivity is triage, never blocking. */
+const BLOCKING_KINDS = new Set<FindingKind>(["bug", "security", "missing_tests"]);
+
+/**
+ * The highest severity over findings that can block. Sensitivity findings
+ * carry a high severity for the triage token but are excluded here, so
+ * fail-on never trips on a diff that merely touches security code.
+ */
+export function highestBlockingSeverity(review: ReviewResult): Severity | "none" {
+  let best: Severity | "none" = "none";
+  for (const finding of flattenFindings(review)) {
+    if (!BLOCKING_KINDS.has(finding.kind)) continue;
+    if (SEVERITY_RANK[finding.severity] > (best === "none" ? -1 : SEVERITY_RANK[best])) {
+      best = finding.severity;
+    }
+  }
+  return best;
+}
+
 export function shouldFail(review: ReviewResult, failOn: FailOn): boolean {
   if (failOn === "none") return false;
-  const highest = highestSeverity(review);
+  const highest = highestBlockingSeverity(review);
   if (highest === "none") return false;
   return SEVERITY_RANK[highest] >= SEVERITY_RANK[failOn];
 }
@@ -100,8 +123,12 @@ export function buildComment(
     if (findings.length === 0) lines.push("_None_");
     for (const finding of findings) {
       const location = finding.range ? ` L${finding.range.start}-${finding.range.end}` : "";
+      const suffix =
+        finding.kind === "security_sensitive"
+          ? " — touches security-sensitive code (triage, not a flaw)"
+          : "";
       lines.push(
-        `- \`${finding.file}\`${location} — **${finding.kind}** (${finding.severity}, ${Math.round(finding.confidence * 100)}% certainty)`,
+        `- \`${finding.file}\`${location} — **${finding.kind}** (${finding.severity}, ${Math.round(finding.confidence * 100)}% certainty)${suffix}`,
       );
     }
     lines.push("", "### PR-level", "");
