@@ -54,6 +54,31 @@ jobs:
 | `max-files` | `40` | Files reviewed, in filename order |
 | `max-chunk-chars` | `8000` | Max characters per evaluation chunk |
 | `ignore-paths` | built-ins | Newline-separated globs; **replaces** the built-in defaults (lockfiles, `dist/`, `build/`, `coverage/`, `generated/`) |
+| `questions-file` | *(none)* | Repo path to a JSON or YAML question-override file, read from the PR **base branch** (a PR cannot weaken its own review). See below. |
+
+### Question overrides (`questions-file`)
+
+The built-in question set is the default. A `questions-file` merges over it:
+
+```yaml
+# .github/jev-review.json (JSON or YAML)
+questions:
+  # Override a built-in question entirely (same id replaces it):
+  security_weakness:
+    type: noul
+    instructions: Does this diff weaken a security property?
+  # false removes a built-in question:
+  needs_tests: false
+  # A new id adds a custom question; its raw answer appears in the comment:
+  custom_changelog:
+    type: choice
+    instructions: Needs a changelog entry?
+    criteria: { yes: null, no: null }
+```
+
+`replace: true` at the top level starts from an empty set — the file's map IS the whole
+question set. The composition degrades gracefully when built-ins are removed (no findings
+from absent answers), and the verdict then reflects only what remains.
 
 ### Outputs
 

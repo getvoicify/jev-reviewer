@@ -12,6 +12,7 @@ function raw(overrides: Record<string, unknown> = {}) {
     maxFiles: "40",
     maxChunkChars: "8000",
     ignorePaths: [],
+    questionsFile: "",
     ...overrides,
   };
 }

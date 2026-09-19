@@ -6,6 +6,8 @@ export interface PrDetails {
   title: string;
   body: string;
   headSha: string;
+  /** The PR's base branch; question overrides are read from it. */
+  baseRef: string;
 }
 
 export interface CheckRunParams {
@@ -22,6 +24,8 @@ export interface DiffSource {
 
 export interface GitHubPort extends DiffSource {
   getPr(owner: string, repo: string, pullNumber: number): Promise<PrDetails>;
+  /** Reads a file at a ref (the question-override config), raw content. */
+  getFileContent(owner: string, repo: string, ref: string, path: string): Promise<string>;
   /** Creates the review comment on first run, updates it on re-reviews. */
   upsertComment(owner: string, repo: string, pullNumber: number, body: string): Promise<void>;
   createCheckRun(owner: string, repo: string, params: CheckRunParams): Promise<void>;
@@ -69,7 +73,21 @@ export class GitHubClient implements GitHubPort {
       title: data.title,
       body: data.body ?? "",
       headSha: data.head.sha,
+      baseRef: data.base.ref,
     };
+  }
+
+  async getFileContent(owner: string, repo: string, ref: string, path: string): Promise<string> {
+    const { data } = await this.#octokit.rest.repos.getContent({
+      owner,
+      repo,
+      path,
+      ref,
+      mediaType: { format: "raw" },
+    });
+    // SAFETY: mediaType "raw" makes GitHub return the file body as a string,
+    // which octokit's schema (typed for the default JSON response) cannot express.
+    return data as unknown as string;
   }
 
   async upsertComment(

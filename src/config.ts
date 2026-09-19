@@ -13,6 +13,8 @@ export interface Config {
   maxTotalChars: number;
   maxChunkChars: number;
   ignoreGlobs: string[] | undefined;
+  /** Repo path to a JSON/YAML question-override file; empty = built-ins. */
+  questionsFile: string;
 }
 
 /** Raw action inputs, already parsed by @actions/core (strings + multiline arrays). */
@@ -26,6 +28,7 @@ export interface RawInputs {
   maxFiles: string;
   maxChunkChars: string;
   ignorePaths: string[];
+  questionsFile: string;
 }
 
 export function parseConfig(inputs: RawInputs, env: Record<string, string | undefined>): Config {
@@ -56,6 +59,7 @@ export function parseConfig(inputs: RawInputs, env: Record<string, string | unde
     maxTotalChars: 100_000,
     maxChunkChars: parseInteger(inputs.maxChunkChars, "max-chunk-chars", 1),
     ignoreGlobs: ignoreGlobs.length > 0 ? ignoreGlobs : undefined,
+    questionsFile: inputs.questionsFile.trim(),
   };
 }
 

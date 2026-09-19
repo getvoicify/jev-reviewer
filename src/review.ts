@@ -18,6 +18,8 @@ export interface ChunkReview {
   range: { start: number; end: number } | null;
   verdict: Verdict;
   findings: Finding[];
+  /** Raw answers to custom (non-builtin) questions, for the comment. */
+  custom?: Record<string, unknown>;
 }
 
 export type PrFindingKind = "breaking_change" | "release_notes";
@@ -38,16 +40,20 @@ export interface ReviewResult {
   verdict: Verdict;
 }
 
-/** Minimal answer shapes consumed by the composition logic. */
+/**
+ * Minimal answer shapes consumed by the composition logic. Every field is
+ * optional: consumers may override or remove built-in questions, and the
+ * composition must degrade gracefully rather than NaN on an absent answer.
+ */
 export interface ChunkAnswers {
-  risk: { type: "score"; score: number; confidence: number };
-  has_bug: { type: "noul"; noul: number };
-  needs_tests: { type: "noul"; noul: number };
+  risk?: { type: "score"; score: number; confidence: number };
+  has_bug?: { type: "noul"; noul: number };
+  needs_tests?: { type: "noul"; noul: number };
   /** Triage signal: the diff touches security-relevant code. Never blocks. */
-  security_sensitive: { type: "noul"; noul: number };
+  security_sensitive?: { type: "noul"; noul: number };
   /** Blocking signal: the diff introduces or worsens a security weakness. */
-  security_weakness: { type: "noul"; noul: number };
-  category: { type: "choice"; choice: string; confidence: number };
+  security_weakness?: { type: "noul"; noul: number };
+  category?: { type: "choice"; choice: string; confidence: number };
 }
 
 export interface PrAnswers {
@@ -111,13 +117,18 @@ export function reviewChunk(
   policy: ReviewPolicy,
 ): ChunkReview {
   const findings: Finding[] = [];
-  const bugCertainty = certainty(answers.has_bug.noul);
-  const weaknessCertainty = certainty(answers.security_weakness.noul);
-  const sensitiveCertainty = certainty(answers.security_sensitive.noul);
-  const testsCertainty = certainty(answers.needs_tests.noul);
-  const risk = answers.risk.score;
+  const hasBug = answers.has_bug?.noul ?? 0;
+  const hasWeakness = answers.security_weakness?.noul ?? 0;
+  const isSensitive = answers.security_sensitive?.noul ?? 0;
+  const needsTests = answers.needs_tests?.noul ?? 0;
+  const category = answers.category?.choice ?? "";
+  const risk = answers.risk?.score ?? 0;
+  const bugCertainty = certainty(hasBug);
+  const weaknessCertainty = certainty(hasWeakness);
+  const sensitiveCertainty = certainty(isSensitive);
+  const testsCertainty = certainty(needsTests);
 
-  if (bugCertainty >= policy.minConfidence && answers.has_bug.noul >= policy.bugThreshold) {
+  if (bugCertainty >= policy.minConfidence && hasBug >= policy.bugThreshold) {
     findings.push({
       kind: "bug",
       severity: riskToSeverity(risk),
@@ -126,10 +137,7 @@ export function reviewChunk(
       range: chunk.range,
     });
   }
-  if (
-    weaknessCertainty >= policy.minConfidence &&
-    answers.security_weakness.noul >= policy.securityThreshold
-  ) {
+  if (weaknessCertainty >= policy.minConfidence && hasWeakness >= policy.securityThreshold) {
     findings.push({
       kind: "security",
       severity: riskToSeverity(Math.max(risk, 3)),
@@ -138,10 +146,7 @@ export function reviewChunk(
       range: chunk.range,
     });
   }
-  if (
-    sensitiveCertainty >= policy.minConfidence &&
-    answers.security_sensitive.noul >= policy.securityThreshold
-  ) {
+  if (sensitiveCertainty >= policy.minConfidence && isSensitive >= policy.securityThreshold) {
     // Sensitivity is triage, not a flaw: it carries the high severity the
     // triage token (and downstream gates like tutela's DeepSeek escalation)
     // read, but it is excluded from fail-on and can never block on its own.
@@ -154,9 +159,9 @@ export function reviewChunk(
     });
   }
   if (
-    CODE_CATEGORIES.has(answers.category.choice) &&
+    CODE_CATEGORIES.has(category) &&
     testsCertainty >= policy.minConfidence &&
-    answers.needs_tests.noul >= policy.testsThreshold
+    needsTests >= policy.testsThreshold
   ) {
     findings.push({
       kind: "missing_tests",
@@ -167,18 +172,15 @@ export function reviewChunk(
     });
   }
 
-  const bugBlocks =
-    bugCertainty >= policy.minConfidence && answers.has_bug.noul >= policy.bugThreshold;
+  const bugBlocks = bugCertainty >= policy.minConfidence && hasBug >= policy.bugThreshold;
   const weaknessBlocks =
-    weaknessCertainty >= policy.minConfidence &&
-    answers.security_weakness.noul >= policy.securityThreshold;
+    weaknessCertainty >= policy.minConfidence && hasWeakness >= policy.securityThreshold;
   const sensitiveFlagged =
-    sensitiveCertainty >= policy.minConfidence &&
-    answers.security_sensitive.noul >= policy.securityThreshold;
+    sensitiveCertainty >= policy.minConfidence && isSensitive >= policy.securityThreshold;
   const testsFlagged =
-    CODE_CATEGORIES.has(answers.category.choice) &&
+    CODE_CATEGORIES.has(category) &&
     testsCertainty >= policy.minConfidence &&
-    answers.needs_tests.noul >= policy.testsThreshold;
+    needsTests >= policy.testsThreshold;
 
   let verdict: Verdict = "approve";
   if (bugBlocks || weaknessBlocks || risk >= policy.blockRisk) verdict = "request_changes";

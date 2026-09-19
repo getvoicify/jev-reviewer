@@ -9,6 +9,7 @@ const PR_DETAILS: PrDetails = {
   title: "Fix login",
   body: "Fixes auth",
   headSha: "abc123",
+  baseRef: "main",
 };
 
 const DIFF = `diff --git a/src/a.ts b/src/a.ts
@@ -70,6 +71,9 @@ function stubPorts(
     async getPr() {
       return PR_DETAILS;
     },
+    async getFileContent() {
+      throw new Error("no questions file configured in this stub");
+    },
     async upsertComment(_owner, _repo, _pullNumber, body) {
       log.comments.push(body);
     },
@@ -100,11 +104,12 @@ function config(overrides: Partial<Config> = {}): Config {
     maxTotalChars: 100_000,
     maxChunkChars: 8_000,
     ignoreGlobs: undefined,
+    questionsFile: "",
     ...overrides,
   };
 }
 
-const CONTEXT = { owner: "o", repo: "r", prNumber: 1 };
+const CONTEXT = { owner: "o", repo: "r", prNumber: 1, baseRef: "main" };
 
 describe("runApp", () => {
   test("reviews, comments, posts a check run with annotations, and sets outputs", async () => {
@@ -186,6 +191,85 @@ describe("runApp", () => {
     expect(log.checkRuns[0]?.conclusion).toBe("success");
   });
 
+  test("a questions file is read from the base ref and its overrides flow to Jev", async () => {
+    const log: CallLog = { comments: [], checkRuns: [], outputs: {}, failures: [], infos: [] };
+    const fetched: Array<{ ref: string; path: string }> = [];
+    const github: GitHubPort = {
+      async getPullDiff() {
+        return DIFF;
+      },
+      async getPr() {
+        return PR_DETAILS;
+      },
+      async getFileContent(_owner, _repo, ref, path) {
+        fetched.push({ ref, path });
+        return `{ "questions": { "needs_tests": false } }`;
+      },
+      async upsertComment(_owner, _repo, _pullNumber, body) {
+        log.comments.push(body);
+      },
+      async createCheckRun(_owner, _repo, params) {
+        log.checkRuns.push(params);
+      },
+    };
+    const states: unknown[] = [];
+    const results = [BUGGY_CHUNK, CLEAN_PR];
+    let next = 0;
+    const jev: JevPort = {
+      async systemOne(request) {
+        states.push(request);
+        const result = results[next];
+        if (!result) throw new Error("stub exhausted");
+        next++;
+        return result as never;
+      },
+    };
+
+    await runApp({
+      config: config({ questionsFile: ".github/jev-review.json" }),
+      githubPort: github,
+      jev,
+      context: CONTEXT,
+      io: { setOutput: () => {}, fail: () => {}, info: () => {} },
+    });
+
+    expect(fetched).toEqual([{ ref: "main", path: ".github/jev-review.json" }]);
+    const chunkRequest = states[0] as { questions?: Record<string, unknown> };
+    expect(chunkRequest?.questions).toBeDefined();
+    expect(Object.keys(chunkRequest.questions ?? {})).not.toContain("needs_tests");
+  });
+
+  test("a missing questions file fails loudly", async () => {
+    const github: GitHubPort = {
+      async getPullDiff() {
+        return DIFF;
+      },
+      async getPr() {
+        return PR_DETAILS;
+      },
+      async getFileContent() {
+        throw new Error("404 Not Found");
+      },
+      async upsertComment() {},
+      async createCheckRun() {},
+    };
+    const jev: JevPort = {
+      async systemOne() {
+        throw new Error("should not be called");
+      },
+    };
+
+    expect(
+      runApp({
+        config: config({ questionsFile: ".github/jev-review.json" }),
+        githubPort: github,
+        jev,
+        context: CONTEXT,
+        io: { setOutput: () => {}, fail: () => {}, info: () => {} },
+      }),
+    ).rejects.toThrow("404");
+  });
+
   test("collection failure propagates and posts nothing", async () => {
     const log: CallLog = { comments: [], checkRuns: [], outputs: {}, failures: [], infos: [] };
     const github: GitHubPort = {
@@ -194,6 +278,9 @@ describe("runApp", () => {
       },
       async getPr() {
         return PR_DETAILS;
+      },
+      async getFileContent() {
+        throw new Error("not configured");
       },
       async upsertComment() {},
       async createCheckRun() {},

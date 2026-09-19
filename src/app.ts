@@ -2,7 +2,7 @@ import { collectDiff } from "./collect";
 import type { Config } from "./config";
 import type { GitHubPort } from "./github";
 import type { JevPort } from "./jev";
-import { buildChunkQuestions, buildChunkState, buildPrQuestions, buildPrState } from "./questions";
+import { parseOverrides } from "./overrides";
 import {
   buildAnnotations,
   buildComment,
@@ -10,15 +10,8 @@ import {
   highestSeverity,
   shouldFail,
 } from "./report";
-import {
-  combineVerdicts,
-  DEFAULT_POLICY,
-  type ReviewPolicy,
-  type ReviewResult,
-  reviewChunk,
-  reviewPrAnswers,
-} from "./review";
-import type { DiffChunk, PrMeta } from "./types";
+import { DEFAULT_POLICY, type ReviewPolicy } from "./review";
+import { reviewDiff } from "./reviewer";
 
 export interface AppIo {
   setOutput(name: string, value: string): void;
@@ -30,6 +23,8 @@ export interface AppContext {
   owner: string;
   repo: string;
   prNumber: number;
+  /** The PR's base branch; question overrides are read from it, never the head. */
+  baseRef: string;
 }
 
 export interface AppDeps {
@@ -59,12 +54,25 @@ export async function runApp(deps: AppDeps): Promise<void> {
   });
 
   const pr = await githubPort.getPr(context.owner, context.repo, context.prNumber);
+  const questionOverrides = config.questionsFile
+    ? parseOverrides(
+        await githubPort.getFileContent(
+          context.owner,
+          context.repo,
+          context.baseRef,
+          config.questionsFile,
+        ),
+        config.questionsFile,
+      )
+    : undefined;
+
   const policy: ReviewPolicy = { ...DEFAULT_POLICY, minConfidence: config.minConfidence };
   const review = await reviewDiff(
     jev,
     collected.chunks,
     { title: pr.title, body: pr.body, filenames: collected.chunks.map((chunk) => chunk.file) },
     policy,
+    questionOverrides,
   );
 
   const fail = shouldFail(review, config.failOn);
@@ -94,32 +102,4 @@ export async function runApp(deps: AppDeps): Promise<void> {
       `Jev review failed: findings at ${highestSeverity(review)} severity meet fail-on ${config.failOn}`,
     );
   }
-}
-
-export async function reviewDiff(
-  jev: JevPort,
-  chunks: DiffChunk[],
-  prMeta: PrMeta,
-  policy: ReviewPolicy = DEFAULT_POLICY,
-): Promise<ReviewResult> {
-  const chunkReviews = [];
-  for (const chunk of chunks) {
-    const response = await jev.systemOne({
-      state: buildChunkState(chunk),
-      questions: buildChunkQuestions(),
-    });
-    chunkReviews.push(reviewChunk(chunk, response.answers, policy));
-  }
-
-  const prResponse = await jev.systemOne({
-    state: buildPrState(prMeta),
-    questions: buildPrQuestions(),
-  });
-  const pr = reviewPrAnswers(prResponse.answers, policy);
-
-  return {
-    chunks: chunkReviews,
-    pr,
-    verdict: combineVerdicts(...chunkReviews.map((review) => review.verdict), pr.verdict),
-  };
 }

@@ -47,6 +47,14 @@ inputs:
       Newline-separated globs to skip. Replaces the built-in
       defaults (lockfiles, dist/, build/, coverage/, generated/).
     required: false
+  questions-file:
+    description: >-
+      Repo path to a JSON or YAML question-override file, read from
+      the PR BASE branch (a PR cannot weaken its own review).
+      questions.<id> replaces a built-in, false removes it, new ids
+      add custom questions whose answers appear in the comment;
+      replace: true starts from an empty set. Empty = built-ins.
+    required: false
 
 outputs:
   findings-json:

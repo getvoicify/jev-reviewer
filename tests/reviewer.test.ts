@@ -97,4 +97,57 @@ describe("reviewDiff", () => {
       status: 429,
     });
   });
+
+  test("custom questions are asked and their answers ride along on the chunk", async () => {
+    const chunkWithCustom = {
+      model: "jev-latest",
+      answers: {
+        risk: { type: "score", score: 0.5, confidence: 0.9 },
+        has_bug: { type: "noul", noul: 0.05 },
+        needs_tests: { type: "noul", noul: 0.05 },
+        security_sensitive: { type: "noul", noul: 0.05 },
+        security_weakness: { type: "noul", noul: 0.05 },
+        category: { type: "choice", choice: "refactor", confidence: 0.9 },
+        custom_changelog: { type: "choice", choice: "yes", confidence: 0.8 },
+      },
+      usage: { input_tokens: 10, output_tokens: 5 },
+    };
+    const cleanPr = {
+      model: "jev-latest",
+      answers: {
+        breaking_change: { type: "noul", noul: 0.05 },
+        release_notes_worthy: { type: "noul", noul: 0.05 },
+      },
+      usage: { input_tokens: 10, output_tokens: 5 },
+    };
+    const { port } = queuedPort([chunkWithCustom, chunkWithCustom, cleanPr]);
+    // The queued port records states, not requests; record the questions here.
+    const askedQuestions: Array<Record<string, unknown>> = [];
+    const observingPort: JevPort = {
+      async systemOne(request) {
+        askedQuestions.push((request as { questions?: Record<string, unknown> }).questions ?? {});
+        return port.systemOne(request as never);
+      },
+    };
+    const overrides = {
+      replace: false,
+      questions: {
+        custom_changelog: {
+          type: "choice" as const,
+          instructions: "Needs a changelog entry?",
+          criteria: { yes: null, no: null },
+        },
+      },
+    };
+
+    const result = await reviewDiff(observingPort, CHUNKS, PR_META, undefined, overrides);
+
+    const asked = askedQuestions[0] ?? {};
+    expect(Object.keys(asked)).toContain("custom_changelog");
+    expect(Object.keys(asked)).toContain("risk");
+    expect(result.chunks[0]?.custom?.custom_changelog).toMatchObject({
+      type: "choice",
+      choice: "yes",
+    });
+  });
 });

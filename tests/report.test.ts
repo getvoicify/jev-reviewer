@@ -194,6 +194,18 @@ describe("buildComment", () => {
     expect(comment).toContain("truncated");
   });
 
+  test("renders custom question answers", () => {
+    const withCustom = review(0, "low");
+    withCustom.chunks[0] = {
+      ...(withCustom.chunks[0] as NonNullable<(typeof withCustom.chunks)[0]>),
+      custom: { custom_changelog: { type: "choice", choice: "yes", confidence: 0.8 } },
+    };
+    const comment = buildComment(withCustom, [], false, { model: "jev-latest", failOn: "none" });
+
+    expect(comment).toContain("custom_changelog");
+    expect(comment).toContain("yes");
+  });
+
   test("says so when no files were reviewed", () => {
     const empty: ReviewResult = {
       verdict: "approve",

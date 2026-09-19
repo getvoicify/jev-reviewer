@@ -80,6 +80,25 @@ describe("reviewChunk", () => {
     expect(review.findings[0]?.confidence).toBeCloseTo(0.9);
   });
 
+  test("an empty answers object approves with no findings", () => {
+    // A consumer may replace the whole question set; the composition must
+    // degrade gracefully rather than NaN on absent answers.
+    const review = reviewChunk(CHUNK, {}, DEFAULT_POLICY);
+
+    expect(review.verdict).toBe("approve");
+    expect(review.findings).toEqual([]);
+  });
+
+  test("a set without the risk question cannot block on risk", () => {
+    const review = reviewChunk(
+      CHUNK,
+      { security_weakness: { type: "noul", noul: 0.05 } },
+      DEFAULT_POLICY,
+    );
+
+    expect(review.verdict).toBe("approve");
+  });
+
   test("clean chunk approves with no findings", () => {
     const review = reviewChunk(CHUNK, answers(), DEFAULT_POLICY);
 

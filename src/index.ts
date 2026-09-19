@@ -18,14 +18,18 @@ async function run(): Promise<void> {
       maxFiles: core.getInput("max-files"),
       maxChunkChars: core.getInput("max-chunk-chars"),
       ignorePaths: core.getMultilineInput("ignore-paths"),
+      questionsFile: core.getInput("questions-file"),
     },
     process.env,
   );
 
   // SAFETY: webhook payloads vary by event; we only read the PR number and
-  // fail with a clear message when the event is not pull_request.
-  const payload = github.context.payload as { pull_request?: { number: number } };
+  // base branch and fail with a clear message when the event is not pull_request.
+  const payload = github.context.payload as {
+    pull_request?: { number: number; base?: { ref: string } };
+  };
   const prNumber = payload.pull_request?.number ?? github.context.issue.number;
+  const baseRef = payload.pull_request?.base?.ref ?? "main";
   if (!prNumber) throw new Error("Not a pull request event: no PR number in context");
 
   const octokit = new Octokit({ auth: config.githubToken });
@@ -34,7 +38,12 @@ async function run(): Promise<void> {
     config,
     githubPort: new GitHubClient(octokit),
     jev: new JevClient({ apiKey: config.apiKey }),
-    context: { owner: github.context.repo.owner, repo: github.context.repo.repo, prNumber },
+    context: {
+      owner: github.context.repo.owner,
+      repo: github.context.repo.repo,
+      prNumber,
+      baseRef,
+    },
     io: { setOutput: core.setOutput, fail: core.setFailed, info: core.info },
   });
 }

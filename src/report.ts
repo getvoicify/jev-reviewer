@@ -136,6 +136,16 @@ export function buildComment(
     for (const finding of review.pr.findings) {
       lines.push(`- ${finding.kind} (${Math.round(finding.confidence * 100)}% certainty)`);
     }
+
+    const customLines = review.chunks.flatMap((chunk) =>
+      Object.entries(chunk.custom ?? {}).map(([id, answer]) => {
+        const formatted = formatCustomAnswer(answer);
+        return `- \`${chunk.file}\` **${id}**: ${formatted}`;
+      }),
+    );
+    if (customLines.length > 0) {
+      lines.push("", "### Custom questions", "", ...customLines);
+    }
   }
 
   lines.push("");
@@ -156,4 +166,24 @@ export function buildSummary(review: ReviewResult, model: string): string {
   // `severity=` is machine-readable: downstream workflows gate on this token
   // (e.g. tutela runs its DeepSeek review only for high/critical).
   return `Jev review: **${review.verdict}** (model ${model}, ${findings.length} finding(s), severity=${highestSeverity(review)})`;
+}
+
+/** Renders a raw custom answer for the comment. */
+export function formatCustomAnswer(answer: unknown): string {
+  if (typeof answer !== "object" || answer === null) return JSON.stringify(answer);
+  const typed = answer as {
+    type?: string;
+    noul?: number;
+    choice?: string;
+    score?: number;
+    confidence?: number;
+  };
+  if (typed.type === "noul") return `yes ${Math.round((typed.noul ?? 0) * 100)}%`;
+  if (typed.type === "choice") {
+    return `${typed.choice ?? "?"} (${Math.round((typed.confidence ?? 0) * 100)}% confidence)`;
+  }
+  if (typed.type === "score") {
+    return `${typed.score ?? 0} (${Math.round((typed.confidence ?? 0) * 100)}% confidence)`;
+  }
+  return JSON.stringify(answer);
 }

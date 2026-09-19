@@ -22,6 +22,7 @@ describe("question builders", () => {
 
   test("risk is a score with levels ordered trivial to critical", () => {
     const risk = buildChunkQuestions().risk;
+    if (!risk || risk.type !== "score") throw new Error("risk is not a score question");
     expect(risk.type).toBe("score");
     expect(risk.criteria).toHaveLength(5);
     const labels = ["trivial", "low", "moderate", "high", "critical"];
@@ -35,6 +36,9 @@ describe("question builders", () => {
 
   test("category is a choice over the six change kinds", () => {
     const category = buildChunkQuestions().category;
+    if (!category || category.type !== "choice") {
+      throw new Error("category is not a choice question");
+    }
     expect(category.type).toBe("choice");
     expect(Object.keys(category.criteria).sort()).toEqual([
       "bugfix",
@@ -54,23 +58,26 @@ describe("question builders", () => {
       "security_sensitive",
       "security_weakness",
     ] as const) {
-      expect(questions[id].type).toBe("noul");
-      expect(questions[id].instructions).toBeTypeOf("string");
-      expect((questions[id].instructions as string).length).toBeGreaterThan(0);
+      const question = questions[id];
+      if (!question) throw new Error(`missing built-in question ${id}`);
+      expect(question.type).toBe("noul");
+      expect(question.instructions).toBeTypeOf("string");
+      expect((question.instructions as string).length).toBeGreaterThan(0);
     }
   });
 
   test("the security questions split sensitivity from weakness", () => {
     const questions = buildChunkQuestions();
+    const sensitive = questions.security_sensitive;
+    const weakness = questions.security_weakness;
+    if (!sensitive || !weakness) throw new Error("missing security questions");
     // Sensitivity asks whether the diff TOUCHES security-relevant code (a
     // triage signal); weakness asks whether it INTRODUCES a security problem
     // (a blocking signal). If the two ever collapse into one wording, the
     // whole sensitivity/weakness split silently reverts.
-    expect(questions.security_sensitive.instructions).toContain("touch");
-    expect(questions.security_weakness.instructions).toContain("weakness");
-    expect(questions.security_sensitive.instructions).not.toBe(
-      questions.security_weakness.instructions,
-    );
+    expect(sensitive.instructions).toContain("touch");
+    expect(weakness.instructions).toContain("weakness");
+    expect(sensitive.instructions).not.toBe(weakness.instructions);
   });
 
   test("pr questions are the two noul judgments", () => {
