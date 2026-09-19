@@ -167,10 +167,11 @@ describe("buildComment", () => {
 });
 
 describe("buildSummary", () => {
-  test("contains verdict and model", () => {
+  test("contains verdict, model, and the machine-readable severity token", () => {
     const summary = buildSummary(review(1, "high"), "jev-latest");
 
     expect(summary).toContain("request_changes");
     expect(summary).toContain("jev-latest");
+    expect(summary).toContain("severity=high");
   });
 });

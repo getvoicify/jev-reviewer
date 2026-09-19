@@ -126,5 +126,7 @@ export function buildComment(
 
 export function buildSummary(review: ReviewResult, model: string): string {
   const findings = flattenFindings(review);
-  return `Jev review: **${review.verdict}** (model ${model}, ${findings.length} finding(s))`;
+  // `severity=` is machine-readable: downstream workflows gate on this token
+  // (e.g. tutela runs its DeepSeek review only for high/critical).
+  return `Jev review: **${review.verdict}** (model ${model}, ${findings.length} finding(s), severity=${highestSeverity(review)})`;
 }
