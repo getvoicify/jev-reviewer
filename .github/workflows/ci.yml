@@ -17,8 +17,8 @@ jobs:
       - run: bun run build
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: 20
-      - name: Verify the bundle boots on Node 20
+          node-version: 24
+      - name: Verify the bundle boots on Node 24
         run: |
           set -o pipefail
           node dist/index.js 2>&1 | grep -q "TYPESAFE_API_KEY" \
