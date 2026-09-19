@@ -2,9 +2,11 @@
 node_modules
 
 # output
+# dist/index.js is the committed action bundle (negation below must stay
+# comment-free: git does not strip trailing comments from gitignore lines)
 out
-dist
-!dist/index.js   # committed bundle: action runtime needs it
+dist/*
+!dist/index.js
 *.tgz
 
 # pi session

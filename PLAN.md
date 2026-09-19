@@ -120,8 +120,8 @@ scripts/build.ts         # bun build → dist/index.js
 1. **Scaffold & client** — git init, deps (`@typesafe-ai/sdk`, `@actions/core`, `@actions/github`, `octokit`), `client.systemOne` wrapper, fixture-recorded tests. ✅ gate: `bun test` green, no network in tests.
 2. **Collect & chunk** — pull diff via octokit, truncate to budget, chunking, ignore-paths. ✅ gate: unit tests for truncation/glob behavior.
 3. **Questions & compose** — question set, findings mapping, verdict + severity logic, confidence gating. ✅ DONE (commit `M3`): 52 tests total, threshold behavior incl. low-confidence suppression asserted on recorded answers. `review_verdict` question dropped (composition in code, per docs doctrine).
-4. **GitHub integration** — comment, check-run with chunk-range annotations, `fail-on`, outputs. ✅ gate: full run against a fixture PR payload (mock octokit), annotations capped (50/create-or-patch call, 1000/run) and referencing correct head-file line ranges.
-5. **Ship & docs** — `scripts/build.ts`, commit `dist/` (gitignore negation in place), README (usage, example workflow, secrets setup, required `pull-requests: write` + `checks: write` permissions), local run docs (`act`, or `bun run index.ts` with env). ✅ gate: `bun build` output runs on node20 with a real key against a real PR.
+4. **GitHub integration** — comment, check-run with chunk-range annotations, `fail-on`, outputs. ✅ DONE (commit `M4`): `action.yml` (node20), strict input parsing, `runApp` orchestration testable over ports, annotations capped at `notice`/`warning` (GitHub rejects `failure` annotations without a failure conclusion) and batched 50/call.
+5. **Ship & docs** — `scripts/build.ts`, commit `dist/` (gitignore negation in place), README (usage, example workflow, secrets setup, required `pull-requests: write` + `checks: write` permissions), local run docs (`act`, or `bun run index.ts` with env). ✅ DONE: bundle boots on Node with graceful failure; CI workflow (SHA-pinned actions) runs check+build+node20 boot test. **Remaining manual step**: push to GitHub, tag `v1`, and one live-key smoke test against a real PR.
 
 ## Risks / open questions
 
