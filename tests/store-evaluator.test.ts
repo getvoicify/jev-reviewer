@@ -199,7 +199,7 @@ describe("reusing a stored evaluation after the gate config changes", () => {
   const calm = { oversized: false, codeChanged: true, unreviewedExcluded: 0 };
 
   const stored: EvaluationRecord = {
-    version: 1,
+    version: 2,
     head: "1".repeat(40),
     mergeBase: "2".repeat(40),
     patchId: "c".repeat(40),

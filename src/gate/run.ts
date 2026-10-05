@@ -14,7 +14,7 @@ import {
 import { evaluatorFingerprint } from "../store/evaluator";
 import { loadPreviousRecord, type RecordReader, type WorkflowRunOrigin } from "../store/load";
 import { planEvaluation } from "../store/plan";
-import type { EvaluationRecord } from "../store/record";
+import type { EvaluationRecord, RecordOverride } from "../store/record";
 import { type RecordWriter, saveRecord } from "../store/save";
 import { aggregateEvaluations, type PartitionEvaluation } from "./aggregate";
 import { DEFAULT_GATE_CONFIG, type GateConfig, GateConfigError, parseGateConfig } from "./config";
@@ -41,6 +41,7 @@ export interface GateContext {
   eventAction: string;
   triggerLabel: string | null;
   sender: string | null;
+  eventAt?: string | null;
 }
 
 export interface GateSettings {
@@ -94,6 +95,8 @@ type Outcome = {
   config: GateConfig;
   partitions: Partition[];
   excludedCount: number;
+  record?: EvaluationRecord;
+  carried?: RecordOverride;
 };
 
 const UNAVAILABLE_CODES: readonly JevErrorCode[] = ["api_error", "connection", "timeout"];
@@ -153,13 +156,17 @@ export async function runGate(deps: GateDeps): Promise<void> {
   const settings = withDefaults(deps.settings);
   await clearStaleOverride(deps, settings);
   const outcome = await decide(deps, settings);
-  if (outcome.verdict.conclusion === "neutral") {
+  const override = await acceptedOverride(deps, settings, outcome);
+  if (outcome.record !== undefined) {
+    logSaved(deps.io, await save(deps, withOverride(outcome.record, override)));
+  }
+  if (outcome.verdict.conclusion === "neutral" && override === null) {
     outcome.verdict.reasons.push(
       `A neutral result blocks the merge: re-run the gate, or add the "${settings.overrideLabel}" label to accept it`,
     );
   }
-  await report(deps, settings, outcome);
-  await conclude(deps, settings, outcome.verdict);
+  await report(deps, settings, outcome, override);
+  conclude(deps, settings, outcome.verdict, override);
 }
 
 async function clearStaleOverride(deps: GateDeps, settings: Settings): Promise<void> {
@@ -215,7 +222,8 @@ async function decide(deps: GateDeps, settings: Settings): Promise<Outcome> {
   const scorable = partitions.filter((part) => !part.oversized);
   io.info(`plan: ${plan.kind}`);
   io.info(`partitions: ${partitions.length} (${partitions.length - scorable.length} oversized)`);
-  const shared = { config, partitions, excludedCount: diff.excluded.length };
+  const carried = plan.kind === "reuse" ? plan.record.override : undefined;
+  const shared = { config, partitions, excludedCount: diff.excluded.length, carried };
 
   if (plan.kind === "empty") {
     logSaved(io, false);
@@ -226,8 +234,8 @@ async function decide(deps: GateDeps, settings: Settings): Promise<Outcome> {
 
   if (plan.kind === "reuse") {
     const parts = [{ evaluation: plan.record.evaluation, changedLines: changedLines(diff.files) }];
-    logSaved(io, await save(deps, plan.record));
     return {
+      record: plan.record,
       ...shared,
       verdict: decideVerdict(parts, config, flags),
       evaluation: plan.record.evaluation,
@@ -252,16 +260,16 @@ async function decide(deps: GateDeps, settings: Settings): Promise<Outcome> {
 
   const evaluation = aggregateEvaluations(parts, config.gated, config.minConfidence);
   const record: EvaluationRecord = {
-    version: 1,
+    version: 2,
     head: diff.head,
     mergeBase: diff.mergeBase,
     patchId: diff.patchId,
     evaluator,
     evaluation,
   };
-  logSaved(io, await save(deps, record));
   return {
     ...shared,
+    record,
     verdict: decideVerdict(parts, config, flags),
     evaluation,
     comparison:
@@ -333,7 +341,17 @@ function logSaved(io: GateIo, saved: boolean): void {
   io.info(`record saved: ${saved ? "yes" : "no"}`);
 }
 
-async function report(deps: GateDeps, settings: Settings, outcome: Outcome): Promise<void> {
+function withOverride(record: EvaluationRecord, override: RecordOverride | null): EvaluationRecord {
+  const { override: _revoked, ...rest } = record;
+  return override === null ? rest : { ...rest, override };
+}
+
+async function report(
+  deps: GateDeps,
+  settings: Settings,
+  outcome: Outcome,
+  override: RecordOverride | null,
+): Promise<void> {
   const { context, github, io } = deps;
   const input = {
     verdict: outcome.verdict,
@@ -348,6 +366,7 @@ async function report(deps: GateDeps, settings: Settings, outcome: Outcome): Pro
     advisoryFloor: outcome.config.advisoryFloor,
     model: settings.model,
     head: context.headSha,
+    overriddenBy: override?.actor,
   };
   const params: GateCheckRunParams = {
     name: settings.checkName,
@@ -375,14 +394,15 @@ async function report(deps: GateDeps, settings: Settings, outcome: Outcome): Pro
   );
 }
 
-async function conclude(deps: GateDeps, settings: Settings, verdict: Verdict): Promise<void> {
+function conclude(
+  deps: GateDeps,
+  settings: Settings,
+  verdict: Verdict,
+  override: RecordOverride | null,
+): void {
   const first = verdict.reasons[0] ?? `Jev gate: ${verdict.conclusion}`;
   if (verdict.conclusion === "success") return;
-  if (
-    verdict.conclusion === "neutral" &&
-    appliedByOverrideActor(deps.context, settings) &&
-    (await overrideApproved(deps, settings))
-  ) {
+  if (override !== null) {
     deps.io.warning(
       `Neutral gate result accepted by the "${settings.overrideLabel}" label: ${first}`,
     );
@@ -391,12 +411,30 @@ async function conclude(deps: GateDeps, settings: Settings, verdict: Verdict): P
   deps.io.fail(first);
 }
 
-function appliedByOverrideActor(context: GateContext, settings: Settings): boolean {
-  return (
+async function acceptedOverride(
+  deps: GateDeps,
+  settings: Settings,
+  outcome: Outcome,
+): Promise<RecordOverride | null> {
+  if (outcome.verdict.conclusion !== "neutral") return null;
+  if (PUSH_ACTIONS.includes(deps.context.eventAction)) return null;
+  const actor = overrideActorOf(deps.context, settings);
+  if (actor === null && outcome.carried === undefined) return null;
+  if (!(await overrideApproved(deps, settings))) return null;
+  return actor === null ? (outcome.carried ?? null) : { actor, labeledAt: eventTime(deps.context) };
+}
+
+function overrideActorOf(context: GateContext, settings: Settings): string | null {
+  const applied =
     context.eventAction === "labeled" &&
     context.triggerLabel === settings.overrideLabel &&
-    settings.overrideActors.some((actor) => actor === context.sender)
-  );
+    settings.overrideActors.some((actor) => actor === context.sender);
+  return applied ? context.sender : null;
+}
+
+function eventTime(context: GateContext): string {
+  const millis = Date.parse(context.eventAt ?? "");
+  return new Date(Number.isNaN(millis) ? Date.now() : millis).toISOString();
 }
 
 async function overrideApproved(deps: GateDeps, settings: Settings): Promise<boolean> {

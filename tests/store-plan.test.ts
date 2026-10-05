@@ -21,7 +21,7 @@ function current(overrides: Partial<Parameters<typeof planEvaluation>[0]> = {}) 
 
 function previous(overrides: Partial<EvaluationRecord> = {}): EvaluationRecord {
   return {
-    version: 1,
+    version: 2,
     head: "3".repeat(40),
     mergeBase: "4".repeat(40),
     patchId: PATCH_ID,
@@ -43,7 +43,7 @@ describe("planEvaluation", () => {
     expect(planEvaluation(current(), record)).toEqual({
       kind: "reuse",
       record: {
-        version: 1,
+        version: 2,
         head: "1".repeat(40),
         mergeBase: "2".repeat(40),
         patchId: PATCH_ID,
@@ -69,6 +69,24 @@ describe("planEvaluation", () => {
     expect(plan.record.evaluation).toEqual(record.evaluation);
     expect(record.head).toBe("3".repeat(40));
     expect(record.mergeBase).toBe("4".repeat(40));
+  });
+
+  test("drops an accepted override when restamping a previous head's record for this head", () => {
+    const record = previous({
+      override: { actor: "verygreenboi", labeledAt: "2026-10-05T09:30:00Z" },
+    });
+    const plan = planEvaluation(current(), record);
+
+    expect(plan.kind).toBe("reuse");
+    if (plan.kind !== "reuse") return;
+    expect("override" in plan.record).toBe(false);
+  });
+
+  test("keeps the override on a record reused for its own head", () => {
+    const override = { actor: "verygreenboi", labeledAt: "2026-10-05T09:30:00Z" };
+    const plan = planEvaluation(current(), previous({ head: "1".repeat(40), override }));
+
+    expect(plan.kind === "reuse" && plan.record.override).toEqual(override);
   });
 
   test("scores from scratch on the first run, with no previous evaluation", () => {

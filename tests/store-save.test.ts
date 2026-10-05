@@ -8,7 +8,7 @@ const HEAD = "a".repeat(40);
 
 function record(): EvaluationRecord {
   return {
-    version: 1,
+    version: 2,
     head: HEAD,
     mergeBase: "b".repeat(40),
     patchId: "c".repeat(40),

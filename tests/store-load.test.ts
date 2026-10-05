@@ -17,7 +17,7 @@ const GATE = { path: ".github/workflows/jev-gate.yml", event: "pull_request_targ
 
 function record(mergeBase: string, head = SHA): EvaluationRecord {
   return {
-    version: 1,
+    version: 2,
     head,
     mergeBase,
     patchId: "c".repeat(40),

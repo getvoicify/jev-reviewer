@@ -162,20 +162,25 @@ checkout is the PR head and fails otherwise.
 ### The owner override
 
 To accept a neutral result, the owner applies the label on the current head; it applies only to that
-head. The override is honoured only on the `labeled` run that the owner's own application of the
-override label triggers, when all of these hold:
+head. The owner accepts it on the `labeled` run that the owner's own application of the override
+label triggers, when all of these hold:
 
 - the event's label is the override label, and its sender is one of `override-actors`;
 - the label is on the PR now, and the latest `labeled` event for it was made by one of
   `override-actors`. Both are read live from the API, and any API error refuses the override.
 
-That run reuses the head's stored evaluation, when there is one, without calling Jev. On every other
-event a neutral result fails, whatever labels the PR carries. Every `synchronize` and `reopened` run
-also removes the label before it evaluates, and if the removal fails no override is honoured on that
-run.
+That run reuses the head's stored evaluation, when there is one, without calling Jev, and saves the
+head's record again with the acceptance (`override: { actor, labeledAt }`). A later run on the same
+head, for any label event, honours that stored acceptance again only when it reuses that stored
+evaluation (same model, gate config and patch-id) and the same live check passes, so an unrelated
+label change no longer fails an accepted PR, while a rescore never inherits it. A failing verdict is never
+overridden, and a record carried over from an earlier push never carries its acceptance.
 
-To revoke an override, remove the label: the gate re-runs on the `unlabeled` event and fails a
-neutral verdict, reusing the head's stored evaluation without calling Jev.
+Every `synchronize` and `reopened` run removes the label before it evaluates and honours no override.
+
+To revoke an override, remove the label: the gate re-runs on the `unlabeled` event, the live check
+fails, and the head's record is saved again without the acceptance, so later label events fail a
+neutral verdict too.
 
 ## Development
 
