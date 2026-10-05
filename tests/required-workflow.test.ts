@@ -37,16 +37,16 @@ async function workflow(): Promise<Workflow> {
 }
 
 async function gateJob(): Promise<Job> {
-  const job = (await workflow()).jobs["jev-gate-required"];
-  if (!job) throw new Error("no jev-gate-required job");
+  const job = (await workflow()).jobs["required-gate"];
+  if (!job) throw new Error("no required-gate job");
   return job;
 }
 
 describe("the ruleset-required gate workflow", () => {
-  test("is named apart from the jev-gate check run the action posts", async () => {
+  test("is named apart from the check run the action posts", async () => {
     const parsed = await workflow();
     expect(parsed.name).toBe("Jev gate (required)");
-    expect(Object.keys(parsed.jobs)).toEqual(["jev-gate-required"]);
+    expect(Object.keys(parsed.jobs)).toEqual(["required-gate"]);
     expect((await gateJob()).name).toBeUndefined();
   });
 
@@ -95,11 +95,12 @@ describe("the ruleset-required gate workflow", () => {
     });
   });
 
-  test("runs the action in gate mode with no override label actors, since a label never starts a required run", async () => {
+  test("runs the action in gate mode under its own check name, with no override label actors since a label never starts a required run", async () => {
     expect((await gateJob()).steps[1]?.with).toEqual({
       mode: "gate",
       "typesafe-api-key": expression("secrets.TYPESAFE_API_KEY"),
       "trusted-workflow-path": UNVERIFIED_TRUSTED_PATH,
+      "check-name": "jev-gate-required",
     });
   });
 });

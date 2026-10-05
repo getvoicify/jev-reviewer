@@ -1,8 +1,9 @@
 # Rolling out the required Jev gate on tutela
 
-Run each step as yourself (`gh auth status` shows `verygreenboi` with `admin:org`), from a local tutela clone. Stop at any output that does not match.
+Run each step as yourself (`gh auth status` shows `verygreenboi` with `admin:org`), in zsh or bash, from a local tutela clone. Stop at any output that does not match.
 
 1. Pin the workflow, stop it running inside jev-reviewer itself, and create the canary-only org ruleset.
+   A ruleset runs the workflow only on `opened`, `synchronize` and `reopened`, and ignores its filters. Labels never start it, so a neutral result is accepted only through the org-admin bypass set here.
 
    ```sh
    SHA=$(gh api repos/getvoicify/jev-reviewer/commits/main --jq .sha); echo "$SHA"
@@ -46,7 +47,7 @@ Run each step as yourself (`gh auth status` shows `verygreenboi` with `admin:org
 
    Expected: `refs/heads/gate-canary`
 
-3. Open a one-line PR into `gate-canary` and read what the run reports. This decides `trusted-workflow-path`.
+3. Open a one-line PR into `gate-canary` and read what the run reports. This decides `trusted-workflow-path`, which until then is a placeholder that matches no run, so no stored record is trusted.
 
    ```sh
    git fetch origin && git switch -c canary/tiny origin/gate-canary
@@ -58,11 +59,13 @@ Run each step as yourself (`gh auth status` shows `verygreenboi` with `admin:org
    gh run view $RUN -R getvoicify/tutela --log | grep -E "changed lines|No TypeSafe API key"
    ```
 
-   Expected: a check named `jev-gate-required` among the checks; then `Jev gate (required)	pull_request_target	<PATH>	<success or failure>`; then one line ending `changed lines: 1 (limit 400)`.
-   - No `Jev gate (required)` check appears: run `gh api -X PUT repos/getvoicify/jev-reviewer/actions/workflows/jev-gate-required.yml/enable` and push an empty commit to `canary/tiny`.
-   - The event is anything but `pull_request_target`, or the log says `No TypeSafe API key`: stop and go to step 6.
-   - `<PATH>` is `.github/workflows/jev-gate-required.yml`: stop. A tutela branch can reproduce that path, so records need signing first (jev-reviewer#8, prerequisite 1).
-   - `<PATH>` starts with `getvoicify/jev-reviewer/` and has no `@`: send it to Claude to replace `unverified-until-the-canary-run` in `.github/workflows/jev-gate-required.yml`. After that merges, re-pin:
+   Expected: the checks include `required-gate` and `jev-gate-required`; then `Jev gate (required)	pull_request_target	<PATH>	<success or failure>`; then one line ending `changed lines: 1 (limit 400)`.
+   - If `gh pr checks` prints `no checks reported on the 'canary/tiny' branch`: the run has not registered yet. Wait 30 seconds and run it again.
+   - If there is still no `required-gate` check after 3 minutes: stop and send `gh api orgs/getvoicify/rulesets --jq '.[] | select(.name=="jev-gate-required")'` to Claude. Disabling the workflow in jev-reviewer is a documented, supported setup, so don't re-enable it.
+   - If the event is anything but `pull_request_target`, or the log says `No TypeSafe API key`: stop and go to step 8.
+   - If `<PATH>` is `.github/workflows/jev-gate-required.yml`: stop. A tutela branch can reproduce that path, so records need signing first (jev-reviewer#8, prerequisite 1).
+   - If `<PATH>` ends in `@` plus the 40-character `$SHA` from step 1: stop and send it to Claude. The file cannot name the SHA of its own commit.
+   - If `<PATH>` starts with `getvoicify/jev-reviewer/` and either has no `@` or ends in `@refs/...`: send the exact string to Claude, to replace `unverified-until-the-canary-run` in `.github/workflows/jev-gate-required.yml`. If it carries `@refs/...`, the string must be updated again whenever a re-pin changes that ref. After the change merges, re-pin:
 
      ```sh
      RULESET_ID=$(gh api orgs/getvoicify/rulesets --jq '.[] | select(.name=="jev-gate-required") | .id')
@@ -72,7 +75,7 @@ Run each step as yourself (`gh auth status` shows `verygreenboi` with `admin:org
      EOF
      ```
 
-     Expected: the new SHA. Then push an empty commit to `canary/tiny` and repeat this step's run readout.
+     Expected: the new SHA. Then push an empty commit to `canary/tiny` (`git commit --allow-empty -m "chore: re-run" && git push`) and repeat this step's run readout. It should print the same `<PATH>`.
    - Any other `<PATH>`: stop and send it to Claude.
 
 4. Open a PR of more than 400 lines into `gate-canary`, then merge it past the rule as an org admin.
@@ -87,18 +90,50 @@ Run each step as yourself (`gh auth status` shows `verygreenboi` with `admin:org
    gh api 'orgs/getvoicify/rulesets/rule-suites?repository_name=tutela&ref=refs/heads/gate-canary&rule_suite_result=bypass&time_period=hour' --jq '.[] | [.actor_name, .ref, .result] | @tsv'
    ```
 
-   Expected: `jev-gate-required` fails, and its log has `PR too large to review: 450 changed lines in reviewed files, over the limit of 400`; then `BLOCKED`; then the merge succeeds (the UI equivalent is the checkbox "Merge without waiting for requirements to be met (bypass rules)"); then `verygreenboi	refs/heads/gate-canary	bypass`.
-   - Also visible at https://github.com/organizations/getvoicify/settings/rules/insights with the `Bypassed` filter.
-   - An agent's token cannot do this merge: the bypass is only for org admins.
+   Expected, in order:
+   - `required-gate` fails, and its log has `PR too large to review: 450 changed lines in reviewed files, over the limit of 400`. If `gh pr checks` prints `no checks reported`, wait 30 seconds and retry.
+   - `BLOCKED`.
+   - The merge succeeds. The UI equivalent is the checkbox "Merge without waiting for requirements to be met (bypass rules)".
+   - `verygreenboi	refs/heads/gate-canary	bypass`. The same entry is at https://github.com/organizations/getvoicify/settings/rules/insights under the `Bypassed` filter.
 
-5. Go live: widen the org ruleset to tutela's default branch, then drop `claude-review` from tutela's ruleset.
+5. Retire tutela's shadow gate before going live. It posts the same `<!-- jev-gate -->` comment as `github-actions[bot]`, so the two gates would overwrite each other's PR comment.
+   Ask Claude to open tutela PR `ci/retire-shadow-gate`. It deletes `.github/workflows/jev-gate.yml` and its tests in `scripts/review-workflow.test.ts`, and keeps `.github/jev-gate.json`.
 
    ```sh
+   gh pr view ci/retire-shadow-gate -R getvoicify/tutela --json files --jq '.files[].path'
+   gh pr checks ci/retire-shadow-gate -R getvoicify/tutela --watch
+   gh pr merge ci/retire-shadow-gate -R getvoicify/tutela --squash
+   gh api repos/getvoicify/tutela/contents/.github/workflows/jev-gate.yml --silent; echo "exit $?"
+   gh api repos/getvoicify/tutela/contents/.github/jev-gate.json --jq .path
+   ```
+
+   Expected:
+   - The file list includes `.github/workflows/jev-gate.yml` and `scripts/review-workflow.test.ts`, and nothing outside `.github/workflows/`, `scripts/`, `docs/` and `comment-census.json`.
+   - All checks pass, and the merge succeeds.
+   - `gh: Not Found (HTTP 404)`, then `exit 1`.
+   - `.github/jev-gate.json`
+
+6. Note the open PRs into main, then widen the org ruleset to tutela's default branch.
+
+   ```sh
+   gh pr list -R getvoicify/tutela --base main --state open --json number --jq '.[].number' > open-prs.txt; cat open-prs.txt
    RULESET_ID=$(gh api orgs/getvoicify/rulesets --jq '.[] | select(.name=="jev-gate-required") | .id')
-   gh api orgs/getvoicify/rulesets/$RULESET_ID --jq '.conditions'
+   gh api orgs/getvoicify/rulesets/$RULESET_ID | jq -cS .conditions
    gh api -X PUT orgs/getvoicify/rulesets/$RULESET_ID --input - --jq '.conditions.ref_name.include[], (.bypass_actors[] | "\(.actor_type) \(.bypass_mode)")' <<'EOF'
    {"bypass_actors":[{"actor_type":"OrganizationAdmin","actor_id":1,"bypass_mode":"pull_request"}],"conditions":{"repository_id":{"repository_ids":[1344623823]},"ref_name":{"include":["~DEFAULT_BRANCH"],"exclude":[]}}}
    EOF
+   while read -r N; do gh pr close "$N" -R getvoicify/tutela && gh pr reopen "$N" -R getvoicify/tutela; done < open-prs.txt
+   ```
+
+   Expected:
+   - One PR number per line (it may be empty).
+   - `{"ref_name":{"exclude":[],"include":["refs/heads/gate-canary"]},"repository_id":{"repository_ids":[1344623823]}}`
+   - `~DEFAULT_BRANCH`, then `OrganizationAdmin pull_request`.
+   - For each listed PR, `✓ Closed pull request getvoicify/tutela#N (...)` then `✓ Reopened pull request getvoicify/tutela#N (...)`. A new rule does not run on PRs that were already open; reopening starts it.
+
+7. Drop `claude-review` from tutela's ruleset 21272731, reviewed as a diff first.
+
+   ```sh
    gh api repos/getvoicify/tutela/rulesets/21272731 > ruleset-21272731.before.json
    jq -r '.rules[] | select(.type=="required_status_checks") | .parameters.required_status_checks[].context' ruleset-21272731.before.json
    jq '{rules: [.rules[] | del(.parameters.require_extra_approval_for_unattributed_changes) | if .type=="required_status_checks" then .parameters.required_status_checks |= map(select(.context != "claude-review")) else . end]}' ruleset-21272731.before.json > ruleset-21272731.after.json
@@ -106,19 +141,23 @@ Run each step as yourself (`gh auth status` shows `verygreenboi` with `admin:org
    gh api -X PUT repos/getvoicify/tutela/rulesets/21272731 --input ruleset-21272731.after.json --jq '.rules[] | select(.type=="required_status_checks") | .parameters.required_status_checks[].context'
    ```
 
-   Expected, in order: the `gate-canary` conditions; `~DEFAULT_BRANCH` and `OrganizationAdmin pull_request`; `ci`, `lint-pr-title`, `claude-review`; a diff whose only removals are the `claude-review` context and `require_extra_approval_for_unattributed_changes`; then `ci`, `lint-pr-title`.
+   Expected:
+   - `ci`, `lint-pr-title`, `claude-review`.
+   - A diff whose only removals are the `claude-review` context and `require_extra_approval_for_unattributed_changes`.
+   - `ci`, `lint-pr-title`.
 
-6. Rollback: disable the org ruleset and restore `claude-review`.
+8. Emergency exit, if every PR is blocked (a runner or TypeSafe outage): disable the org ruleset and restore `claude-review` from the live ruleset. Until then, an org admin can still bypass-merge any single PR as in step 4.
 
    ```sh
+   set -o pipefail
    RULESET_ID=$(gh api orgs/getvoicify/rulesets --jq '.[] | select(.name=="jev-gate-required") | .id')
    gh api -X PUT orgs/getvoicify/rulesets/$RULESET_ID -f enforcement=disabled --jq .enforcement
-   jq '{rules: [.rules[] | del(.parameters.require_extra_approval_for_unattributed_changes)]}' ruleset-21272731.before.json | gh api -X PUT repos/getvoicify/tutela/rulesets/21272731 --input - --jq '.rules[] | select(.type=="required_status_checks") | .parameters.required_status_checks[].context'
+   BODY=$(gh api repos/getvoicify/tutela/rulesets/21272731 | jq -ce '{rules: [.rules[] | del(.parameters.require_extra_approval_for_unattributed_changes) | if .type=="required_status_checks" then .parameters.required_status_checks |= (map(select(.context != "claude-review")) + [{"context":"claude-review"}]) else . end]} | select([.rules[] | select(.type=="required_status_checks")] | length == 1)') && gh api -X PUT repos/getvoicify/tutela/rulesets/21272731 --input - --jq '.rules[] | select(.type=="required_status_checks") | .parameters.required_status_checks[].context' <<<"$BODY"
    ```
 
-   Expected: `disabled`, then `ci`, `lint-pr-title`, `claude-review`.
+   Expected: `disabled`, then `ci`, `lint-pr-title`, `claude-review`. If the fetch or `jq` fails, nothing is sent and the line prints only the error.
 
-7. Cleanup: close the tiny canary PR with its branch and delete `gate-canary` (`canary/big` was deleted on merge).
+9. Cleanup: close the tiny canary PR with its branch and delete `gate-canary` (`canary/big` was deleted on merge).
 
    ```sh
    gh pr close canary/tiny -R getvoicify/tutela --delete-branch

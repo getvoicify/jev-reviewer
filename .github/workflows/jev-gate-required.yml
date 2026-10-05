@@ -1,16 +1,5 @@
-# Jev metric gate, enforcing. An org ruleset "workflows" rule requires this
-# file, pinned by SHA, on the repositories it targets; it runs in the target
-# repository's context with that repository's secrets. Rollout steps:
-# docs/rollout-required-gate.md. Shape and pins are test-locked in
-# tests/required-workflow.test.ts.
-#
-# A ruleset runs this only on the default pull_request_target activity types
-# and ignores any filter here, so labeled events never start it and the
-# override label cannot apply. The owner accepts a neutral result by merging
-# with the org ruleset's OrganizationAdmin pull_request bypass instead.
-#
-# trusted-workflow-path is a placeholder that matches no run, so no stored
-# record is trusted until the canary run reports the real path (runbook step 3).
+# Jev metric gate, enforcing: required on tutela by an org ruleset workflows rule.
+# Rollout and rationale: docs/rollout-required-gate.md; shape pinned by tests/required-workflow.test.ts.
 name: Jev gate (required)
 on:
   pull_request_target:
@@ -23,7 +12,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  jev-gate-required:
+  required-gate:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions:
       contents: read
@@ -42,3 +31,4 @@ jobs:
           mode: gate
           typesafe-api-key: ${{ secrets.TYPESAFE_API_KEY }}
           trusted-workflow-path: unverified-until-the-canary-run
+          check-name: jev-gate-required
