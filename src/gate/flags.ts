@@ -8,11 +8,11 @@ const DOCUMENTATION_GLOBS: readonly string[] = [
   "**/*.markdown",
   "**/*.rst",
   "**/*.adoc",
-  "docs/**",
   "**/LICENSE",
-  "**/LICENSE.*",
-  "**/CHANGELOG*",
-  "**/.github/ISSUE_TEMPLATE/**",
+  "**/CHANGELOG",
+  "**/.github/ISSUE_TEMPLATE/**/*.md",
+  "**/.github/ISSUE_TEMPLATE/**/*.yml",
+  "**/.github/ISSUE_TEMPLATE/**/*.yaml",
 ];
 
 const isDocumentation = picomatch([...DOCUMENTATION_GLOBS], { dot: true });
