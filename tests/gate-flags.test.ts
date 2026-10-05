@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { excludePaths } from "../src/diff/exclude";
 import { partition } from "../src/diff/partition";
 import type { DiffFile, ExcludedFile, Partition } from "../src/diff/types";
 import { DEFAULT_GATE_CONFIG, type GateConfig } from "../src/gate/config";
@@ -109,6 +110,19 @@ describe("gateFlags for files that steer agents", () => {
     ["the Copilot instructions", ".github/copilot-instructions.md"],
     ["a Copilot path instruction", ".github/instructions/ts.instructions.md"],
     ["a Copilot prompt", ".github/prompts/review.prompt.md"],
+    ["a lower-case agents.md", "agents.md"],
+    ["a lower-case claude.md", "docs/claude.md"],
+    ["a capitalised .Claude directory", ".Claude/commands/x.md"],
+    ["an upper-case .CURSOR directory", ".CURSOR/rules/a.md"],
+    ["mixed-case Copilot instructions", ".github/Copilot-Instructions.md"],
+    ["a Windsurf rule", ".windsurf/rules/style.md"],
+    ["the Windsurf rules file", ".windsurfrules"],
+    ["the Cline rules file", ".clinerules"],
+    ["a Cline rule in a directory", ".clinerules/style.md"],
+    ["a Kiro steering file", ".kiro/steering/product.md"],
+    ["a Copilot chat mode", ".github/chatmodes/plan.chatmode.md"],
+    ["an aider CONVENTIONS.md", "CONVENTIONS.md"],
+    ["an aider file", ".aider.instructions.md"],
   ];
 
   for (const [kind, path] of steering) {
@@ -141,22 +155,49 @@ describe("gateFlags for excluded files", () => {
     expect(withExcluded([], [excluded("dist/index.js", "**/dist/**")])).toBe(true);
   });
 
-  test("does not count a lockfile-only change beside a README as code", () => {
-    expect(withExcluded([file("README.md")], [excluded("bun.lock", "**/bun.lock")])).toBe(false);
+  test("counts a lockfile-only change beside a README as code, since a lockfile can repoint a dependency", () => {
+    expect(withExcluded([file("README.md")], [excluded("bun.lock", "**/bun.lock")])).toBe(true);
   });
 
+  test("counts an excluded build wrapper jar beside a README as code, since CI runs it", () => {
+    expect(
+      withExcluded(
+        [file("README.md")],
+        [excluded("gradle/wrapper/gradle-wrapper.jar", "**/*.jar")],
+      ),
+    ).toBe(true);
+  });
+
+  test("still excludes archives from scoring while counting them as code", () => {
+    const archives = ["lib/tool.jar", "release/bundle.zip", "vendor/pkg.tar.gz"];
+    const { kept, excluded: dropped } = excludePaths(archives.map((path) => file(path)));
+
+    expect(kept).toEqual([]);
+    expect(withExcluded([], dropped)).toBe(true);
+  });
+
+  const inertAssetExtensions = [
+    "png",
+    "jpg",
+    "jpeg",
+    "gif",
+    "webp",
+    "ico",
+    "avif",
+    "woff",
+    "woff2",
+    "ttf",
+    "otf",
+    "eot",
+    "pdf",
+    "mp3",
+    "mp4",
+    "wav",
+    "webm",
+  ];
+
   const inert = [
-    "bun.lock",
-    "packages/api/bun.lockb",
-    "package-lock.json",
-    "web/yarn.lock",
-    "pnpm-lock.yaml",
-    "crates/core/Cargo.lock",
-    "poetry.lock",
-    "go.sum",
-    "assets/logo.png",
-    "fonts/inter.woff2",
-    "media/intro.mp4",
+    ...inertAssetExtensions.map((ext) => `assets/file.${ext}`),
     "apps/web/comment-census.json",
     ".release-please-manifest.json",
     "packages/core/CHANGELOG.md",
@@ -169,7 +210,23 @@ describe("gateFlags for excluded files", () => {
     });
   }
 
-  const notInert = ["generated/client.ts", "src/app.min.js", "out/server.js", "docs/guide.md"];
+  const notInert = [
+    "generated/client.ts",
+    "src/app.min.js",
+    "out/server.js",
+    "docs/guide.md",
+    "lib/tool.jar",
+    "release/bundle.zip",
+    "vendor/pkg.tar.gz",
+    "bun.lock",
+    "packages/api/bun.lockb",
+    "package-lock.json",
+    "web/yarn.lock",
+    "pnpm-lock.yaml",
+    "crates/core/Cargo.lock",
+    "poetry.lock",
+    "go.sum",
+  ];
 
   for (const path of notInert) {
     test(`counts an excluded file outside the inert list (${path}) as code`, () => {
