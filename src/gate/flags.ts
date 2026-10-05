@@ -1,5 +1,5 @@
 import picomatch from "picomatch";
-import { INERT_ASSET_EXTENSIONS } from "../diff/exclude";
+import { DRIZZLE_SNAPSHOT_GLOB, INERT_ASSET_EXTENSIONS } from "../diff/exclude";
 import type { CumulativeDiff, DiffFile, Partition } from "../diff/types";
 import type { VerdictFlags } from "./verdict";
 
@@ -39,6 +39,7 @@ const INERT_EXCLUDED_GLOBS: readonly string[] = [
   "**/*census.json",
   "**/.release-please-manifest.json",
   "**/CHANGELOG.md",
+  DRIZZLE_SNAPSHOT_GLOB,
 ];
 
 const steersAgents = picomatch([...AGENT_STEERING_GLOBS], { dot: true, nocase: true });

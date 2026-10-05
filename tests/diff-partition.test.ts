@@ -186,6 +186,7 @@ describe("excludePaths", () => {
       ".release-please-manifest.json",
       "src/app.ts",
       "packages/db/drizzle/0001_init.sql",
+      "packages/db/drizzle/meta/_journal.json",
       "docs/CHANGELOG.md",
     ].map((path) => file(path, 120));
 
@@ -194,12 +195,13 @@ describe("excludePaths", () => {
     expect(result.kept.map((f) => f.path)).toEqual([
       "src/app.ts",
       "packages/db/drizzle/0001_init.sql",
+      "packages/db/drizzle/meta/_journal.json",
       "docs/CHANGELOG.md",
     ]);
     expect(result.excluded).toEqual([
       {
         path: "packages/db/drizzle/meta/0001_snapshot.json",
-        pattern: "packages/db/drizzle/meta/**",
+        pattern: "**/drizzle/meta/*_snapshot.json",
       },
       { path: "bun.lock", pattern: "**/bun.lock" },
       { path: "apps/web/bun.lock", pattern: "**/bun.lock" },
