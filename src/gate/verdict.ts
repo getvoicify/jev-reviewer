@@ -1,8 +1,7 @@
 import { type Evaluation, type MetricKey, metricKeys } from "../metrics";
 import {
   aggregateEvaluations,
-  gatedStatus,
-  lowestScore,
+  gatedRepresentative,
   type PartitionEvaluation,
   type ScoredPart,
   scoredParts,
@@ -34,8 +33,6 @@ export const OVERSIZED_REASON =
 export const NO_GATED_METRIC_REASON = "No gated metric was applicable to a code change";
 
 type Assessed = MetricVerdict & { reason: string | null };
-
-const GATED_SEVERITY: MetricStatus[] = ["fail", "inconclusive", "pass"];
 
 export function decideVerdict(
   parts: PartitionEvaluation[],
@@ -83,22 +80,19 @@ function assessGated(
   config: GateConfig,
 ): Assessed {
   const base = { metric: key, gated: true, minimum };
-  const statusOf = (part: ScoredPart): MetricStatus =>
-    gatedStatus(part.metric, minimum, config.minConfidence);
-
-  for (const status of GATED_SEVERITY) {
-    const worst = lowestScore(scored.filter((part) => statusOf(part) === status));
-    if (worst === undefined) continue;
-    const { score, confidence } = worst.metric;
-    const reason =
-      status === "fail"
-        ? `${key} scored ${display(score, minimum)}, below the minimum of ${minimum}`
-        : status === "inconclusive"
-          ? `${key} confidence ${display(confidence, config.minConfidence)} is below the minimum of ${config.minConfidence}`
-          : null;
-    return { ...base, score, confidence, status, reason };
+  const representative = gatedRepresentative(scored, minimum, config.minConfidence);
+  if (representative === undefined) {
+    return { ...base, score: null, confidence: null, status: "not_applicable", reason: null };
   }
-  return { ...base, score: null, confidence: null, status: "not_applicable", reason: null };
+  const { status } = representative;
+  const { score, confidence } = representative.part.metric;
+  const reason =
+    status === "fail"
+      ? `${key} scored ${display(score, minimum)}, below the minimum of ${minimum}`
+      : status === "inconclusive"
+        ? `${key} confidence ${display(confidence, config.minConfidence)} is below the minimum of ${config.minConfidence}`
+        : null;
+  return { ...base, score, confidence, status, reason };
 }
 
 function assessAdvisory(key: MetricKey, aggregate: Evaluation, config: GateConfig): Assessed {

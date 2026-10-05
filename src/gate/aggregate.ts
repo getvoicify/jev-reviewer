@@ -56,7 +56,23 @@ export function gatedStatus(
   return "pass";
 }
 
-export function lowestScore(parts: ScoredPart[]): ScoredPart | undefined {
+const GATED_SEVERITY: readonly GatedStatus[] = ["fail", "inconclusive", "pass"];
+
+export function gatedRepresentative(
+  scored: ScoredPart[],
+  minimum: number,
+  minConfidence: number,
+): { part: ScoredPart; status: GatedStatus } | undefined {
+  for (const status of GATED_SEVERITY) {
+    const part = lowestScore(
+      scored.filter((each) => gatedStatus(each.metric, minimum, minConfidence) === status),
+    );
+    if (part !== undefined) return { part, status };
+  }
+  return undefined;
+}
+
+function lowestScore(parts: ScoredPart[]): ScoredPart | undefined {
   return parts.reduce<ScoredPart | undefined>(
     (lowest, candidate) =>
       lowest === undefined ||
@@ -74,14 +90,10 @@ export function aggregateEvaluations(
   gated: GatedMinimums,
   minConfidence: number,
 ): Evaluation {
-  const gatedKeys = Object.keys(gated);
   const valid = validatePartitions(parts);
 
   const metrics = Object.fromEntries(
-    metricKeys.map((key) => [
-      key,
-      aggregateMetric(valid, key, gatedKeys.includes(key), minConfidence),
-    ]),
+    metricKeys.map((key) => [key, aggregateMetric(valid, key, gated[key], minConfidence)]),
   ) as Evaluation["metrics"];
 
   const priorities = uniqueBy(
@@ -95,7 +107,7 @@ export function aggregateEvaluations(
 function aggregateMetric(
   parts: PartitionEvaluation[],
   key: MetricKey,
-  gated: boolean,
+  minimum: number | undefined,
   minConfidence: number,
 ): MetricEvaluation {
   const all = parts.map((part) => part.evaluation.metrics[key]);
@@ -110,10 +122,9 @@ function aggregateMetric(
     return withOptional({ applicable: false }, summary, issues);
   }
 
-  if (gated) {
-    const representative =
-      lowestScore(scored.filter((part) => part.metric.confidence >= minConfidence)) ??
-      leastConfident(scored);
+  const representative =
+    minimum === undefined ? undefined : gatedRepresentative(scored, minimum, minConfidence)?.part;
+  if (representative !== undefined) {
     return withOptional(
       {
         applicable: true,
@@ -144,16 +155,6 @@ function aggregateMetric(
     },
     heaviest.metric.summary,
     issues,
-  );
-}
-
-function leastConfident(parts: ScoredPart[]): ScoredPart {
-  return parts.reduce((least, candidate) =>
-    candidate.metric.confidence < least.metric.confidence ||
-    (candidate.metric.confidence === least.metric.confidence &&
-      candidate.metric.score < least.metric.score)
-      ? candidate
-      : least,
   );
 }
 
