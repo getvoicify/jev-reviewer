@@ -104,11 +104,45 @@ describe("encodeRecord", () => {
 });
 
 describe("decodeRecord", () => {
-  test("finds the record line among the rest of the report text", () => {
+  test("reads the record from the first line, ahead of the report", () => {
     const original = record();
-    const text = `## Jev gate\n\nScores below.\n\n${encodeRecord(original)}\n\nfooter`;
+    const text = `${encodeRecord(original)}\n## Jev gate\n\nScores below.`;
 
     expect(decodeRecord(text)).toEqual(original);
+  });
+
+  test("reads a record that is the whole text", () => {
+    const original = record();
+
+    expect(decodeRecord(encodeRecord(original))).toEqual(original);
+  });
+
+  test("reads a first line that ends in a carriage return", () => {
+    const original = record();
+
+    expect(decodeRecord(`${encodeRecord(original)}\r\n## Jev gate`)).toEqual(original);
+  });
+
+  test("ignores a record that is not on the first line", () => {
+    const line = encodeRecord(record());
+
+    expect(decodeRecord(`## Jev gate\n\nScores below.\n\n${line}\n\nfooter`)).toBeNull();
+    expect(decodeRecord(`\n${line}`)).toBeNull();
+  });
+
+  test("ignores a first line that carries more than the marker", () => {
+    const line = encodeRecord(record());
+
+    expect(decodeRecord(`echoed: ${line}\n## Jev gate`)).toBeNull();
+    expect(decodeRecord(`${line} trailing\n## Jev gate`)).toBeNull();
+    expect(decodeRecord(` ${line}\n## Jev gate`)).toBeNull();
+    expect(decodeRecord(`${line}\r\r\n## Jev gate`)).toBeNull();
+  });
+
+  test("rejects a valid first line when another marker appears later in the text", () => {
+    const line = encodeRecord(record());
+
+    expect(decodeRecord(`${line}\n## Jev gate\n\nquoted <!-- jev-gate-record: text`)).toBeNull();
   });
 
   test("returns null for absent output text", () => {

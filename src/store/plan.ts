@@ -21,6 +21,11 @@ export function planEvaluation(
   if (previous === null || previous.evaluator !== current.evaluator) {
     return { kind: "score", previousEvaluation: null };
   }
-  if (previous.patchId === current.patchId) return { kind: "reuse", record: previous };
+  if (previous.patchId === current.patchId) {
+    return {
+      kind: "reuse",
+      record: { ...previous, head: current.head, mergeBase: current.mergeBase },
+    };
+  }
   return { kind: "score", previousEvaluation: previous.evaluation };
 }
