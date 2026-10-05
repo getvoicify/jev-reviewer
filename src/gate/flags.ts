@@ -57,8 +57,10 @@ export function gateFlags(
   diff: Pick<CumulativeDiff, "files" | "excluded">,
   partitions: readonly Partition[],
 ): VerdictFlags {
+  const unreviewedExcluded = diff.excluded.filter((file) => !isInert(file.path)).length;
   return {
     oversized: partitions.some((p) => p.oversized),
-    codeChanged: diff.files.some(isCode) || diff.excluded.some((file) => !isInert(file.path)),
+    codeChanged: diff.files.some(isCode) || unreviewedExcluded > 0,
+    unreviewedExcluded,
   };
 }

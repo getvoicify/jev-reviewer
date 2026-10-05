@@ -17,6 +17,16 @@ export interface CheckRunParams {
   annotations: Annotation[];
 }
 
+export interface GateCheckRunParams {
+  name: string;
+  headSha: string;
+  conclusion: "success" | "failure" | "neutral";
+  title: string;
+  summary: string;
+  text: string;
+  annotations: Annotation[];
+}
+
 /** Minimal surface needed by diff collection; keeps collect.ts decoupled from reporting. */
 export interface DiffSource {
   getPullDiff(owner: string, repo: string, pullNumber: number): Promise<string>;
@@ -37,10 +47,12 @@ const ANNOTATION_BATCH_SIZE = 50;
 
 /** Returns the id of the first comment carrying the marker, or null. */
 export function selectUpsertTarget(
-  comments: Array<{ id: number; body?: string | null }>,
+  comments: Array<{ id: number; body?: string | null; user?: { login: string } | null }>,
   marker: string,
+  author?: string,
 ): number | null {
   for (const comment of comments) {
+    if (author !== undefined && comment.user?.login !== author) continue;
     if (comment.body?.includes(marker)) return comment.id;
   }
   return null;
@@ -95,13 +107,15 @@ export class GitHubClient implements GitHubPort {
     repo: string,
     pullNumber: number,
     body: string,
+    marker: string = COMMENT_MARKER,
+    author?: string,
   ): Promise<void> {
     const comments = await this.#octokit.paginate(this.#octokit.rest.issues.listComments, {
       owner,
       repo,
       issue_number: pullNumber,
     });
-    const existingId = selectUpsertTarget(comments, COMMENT_MARKER);
+    const existingId = selectUpsertTarget(comments, marker, author);
     if (existingId === null) {
       await this.#octokit.rest.issues.createComment({
         owner,
@@ -135,6 +149,29 @@ export class GitHubClient implements GitHubPort {
         repo,
         check_run_id: data.id,
         output: { title: CHECK_TITLE, summary: params.summary, annotations: batch },
+      });
+    }
+  }
+
+  async createGateCheckRun(owner: string, repo: string, params: GateCheckRunParams): Promise<void> {
+    const [firstBatch = [], ...rest] = batchAnnotations(params.annotations, ANNOTATION_BATCH_SIZE);
+    const { title, summary, text } = params;
+    const { data } = await this.#octokit.rest.checks.create({
+      owner,
+      repo,
+      name: params.name,
+      head_sha: params.headSha,
+      status: "completed",
+      conclusion: params.conclusion,
+      completed_at: new Date().toISOString(),
+      output: { title, summary, text, annotations: firstBatch },
+    });
+    for (const batch of rest) {
+      await this.#octokit.rest.checks.update({
+        owner,
+        repo,
+        check_run_id: data.id,
+        output: { title, summary, annotations: batch },
       });
     }
   }

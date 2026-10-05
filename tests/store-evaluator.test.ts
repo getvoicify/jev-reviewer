@@ -196,7 +196,7 @@ describe("reusing a stored evaluation after the gate config changes", () => {
   ];
   const storedUnder = parseGateConfig('{"version":1,"minConfidence":0.3,"gated":{"security":5}}');
   const decidedUnder = parseGateConfig('{"version":1,"minConfidence":0.6,"gated":{"security":7}}');
-  const calm = { oversized: false, codeChanged: true };
+  const calm = { oversized: false, codeChanged: true, unreviewedExcluded: 0 };
 
   const stored: EvaluationRecord = {
     version: 1,
