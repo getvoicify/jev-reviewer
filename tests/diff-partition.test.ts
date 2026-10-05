@@ -210,6 +210,31 @@ describe("excludePaths", () => {
     ]);
   });
 
+  test("excludes common binary assets by default, case as written", () => {
+    const result = excludePaths(
+      ["a.png", "b.woff2", "c/d.jpeg", "e.mp4", "f.PNG", "g.bin"].map((p) => file(p, 120)),
+    );
+
+    expect(result.kept.map((f) => f.path)).toEqual(["f.PNG", "g.bin"]);
+    expect(result.excluded.map((e) => e.pattern)).toEqual([
+      "**/*.png",
+      "**/*.woff2",
+      "**/*.jpeg",
+      "**/*.mp4",
+    ]);
+  });
+
+  test("keeps a rename whose old path is kept, even when its new path is excluded", () => {
+    const moved = { ...file("src/out/auth.ts", 120), oldPath: "src/auth.ts" };
+    const fromExcluded = { ...file("src/auth.ts", 120), oldPath: "src/out/auth.ts" };
+    const bothExcluded = { ...file("out/b.ts", 120), oldPath: "out/a.ts" };
+
+    const result = excludePaths([moved, fromExcluded, bothExcluded]);
+
+    expect(result.kept).toEqual([moved, fromExcluded]);
+    expect(result.excluded).toEqual([{ path: "out/b.ts", pattern: "**/out/**" }]);
+  });
+
   test("keeps the action's existing ignore-paths defaults", () => {
     expect(DEFAULT_EXCLUDE_GLOBS).toContain("**/dist/**");
     expect(excludePaths([file("dist/index.js", 120)]).excluded).toEqual([

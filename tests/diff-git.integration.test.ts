@@ -11,7 +11,15 @@ const savedEnv = { ...process.env };
 
 afterEach(() => {
   for (const dir of cleanups.splice(0)) rmSync(dir, { recursive: true, force: true });
-  for (const key of ["GIT_CONFIG_GLOBAL", "GIT_CONFIG_SYSTEM", "GIT_CONFIG_PARAMETERS"]) {
+  for (const key of [
+    "GIT_CONFIG_GLOBAL",
+    "GIT_CONFIG_SYSTEM",
+    "GIT_CONFIG_PARAMETERS",
+    "GIT_CONFIG_COUNT",
+    "GIT_CONFIG_KEY_0",
+    "GIT_CONFIG_VALUE_0",
+    "GIT_TEST_ASSUME_DIFFERENT_OWNER",
+  ]) {
     if (savedEnv[key] === undefined) delete process.env[key];
     else process.env[key] = savedEnv[key];
   }
@@ -158,16 +166,124 @@ describe("cumulativeDiff against a real repository", () => {
     r.publishMain();
     r.write(".gitattributes", "src/evil.ts -diff\n");
     r.write("src/evil.ts", "steal();\n");
-    r.write("assets/logo.bin", new Uint8Array([0, 1, 2, 0, 255, 0]));
     r.commit("sneaky");
+
+    const result = cumulativeDiff(r.port, { baseRef: "main" });
+    const evil = result.files.find((f) => f.path === "src/evil.ts");
+
+    expect(evil?.added).toBe(1);
+    expect(evil?.patch).toContain("+steal();");
+  });
+
+  test("shows a source file containing a NUL byte as text rather than binary", () => {
+    const r = makeRepo();
+    r.publishMain();
+    r.write("src/evil.ts", "steal();\n'x\0';\n");
+    r.write("assets/data.bin", new Uint8Array([0, 1, 2, 0, 255, 0, 10]));
+    r.write("assets/logo.png", new Uint8Array([137, 80, 78, 71, 0, 0, 10]));
+    r.commit("nul");
 
     const result = cumulativeDiff(r.port, { baseRef: "main" });
     const byPath = new Map(result.files.map((f) => [f.path, f]));
 
-    expect(byPath.get("src/evil.ts")?.added).toBe(1);
-    expect(byPath.get("src/evil.ts")?.patch).toContain("+steal();");
-    expect(byPath.get("assets/logo.bin")?.patch).toContain("Binary files");
-    expect(byPath.get("assets/logo.bin")?.added).toBe(0);
+    expect(byPath.get("src/evil.ts")?.added).toBe(2);
+    expect(byPath.get("src/evil.ts")?.patch).toContain("+steal();\n");
+    expect(byPath.get("src/evil.ts")?.patch).not.toContain("Binary files");
+    expect(byPath.get("assets/data.bin")?.patch).not.toContain("Binary files");
+    expect(byPath.get("assets/data.bin")?.added).toBe(1);
+    expect(result.excluded).toEqual([{ path: "assets/logo.png", pattern: "**/*.png" }]);
+  });
+
+  test("keeps a kept file renamed into an excluded path, so its deletion is still reviewed", () => {
+    const r = makeRepo();
+    r.write("src/auth.ts", "export const check = () => true;\n");
+    r.commit("seed");
+    r.git("branch", "-f", "main", "HEAD");
+    r.publishMain();
+    r.remove("src/auth.ts");
+    r.write("src/out/auth.ts", "export const check = () => true;\n");
+    r.commit("hide it");
+
+    const result = cumulativeDiff(r.port, { baseRef: "main" });
+
+    expect(result.files.map((f) => [f.path, f.oldPath])).toEqual([
+      ["src/out/auth.ts", "src/auth.ts"],
+    ]);
+    expect(result.excluded).toEqual([]);
+    expect(result.patchId).toMatch(/^[0-9a-f]{40}$/);
+  });
+
+  test("ignores repo-local textconv drivers", () => {
+    const r = makeRepo();
+    r.write(".gitattributes", "*.ts diff=x\n");
+    r.commit("attributes");
+    r.git("branch", "-f", "main", "HEAD");
+    r.publishMain();
+    r.git("config", "diff.x.textconv", "sed s/real/FAKE/");
+    r.write("src/a.ts", "real();\n");
+    r.commit("change");
+
+    const patch = cumulativeDiff(r.port, { baseRef: "main" }).files[0]?.patch;
+
+    expect(patch).toContain("+real();");
+    expect(patch).not.toContain("FAKE");
+  });
+
+  test("ignores a repo-local external diff command", () => {
+    const r = makeRepo();
+    r.publishMain();
+    r.git("config", "diff.external", "echo EXTERNAL");
+    r.write("src/a.ts", "real();\n");
+    r.commit("change");
+
+    const result = cumulativeDiff(r.port, { baseRef: "main" });
+
+    expect(result.files.map((f) => f.path)).toEqual(["src/a.ts"]);
+    expect(result.files[0]?.patch).toContain("+real();");
+    expect(result.files[0]?.patch).not.toContain("EXTERNAL");
+  });
+
+  test("ignores config injected through GIT_CONFIG_COUNT", () => {
+    const r = makeRepo();
+    r.publishMain();
+    r.write("src/a.ts", "real();\n");
+    r.commit("change");
+    const scratch = mkdtempSync(join(tmpdir(), "jev-count-"));
+    cleanups.push(scratch);
+    const hideEverything = join(scratch, "attributes");
+    writeFileSync(hideEverything, "* -diff\n");
+    process.env.GIT_CONFIG_COUNT = "1";
+    process.env.GIT_CONFIG_KEY_0 = "core.attributesFile";
+    process.env.GIT_CONFIG_VALUE_0 = hideEverything;
+
+    const result = cumulativeDiff(createGitPort(r.repo), { baseRef: "main" });
+
+    expect(result.files[0]?.patch).toContain("+real();");
+  });
+
+  test("works when git sees the checkout as owned by someone else, from the root or a subdirectory", () => {
+    const r = makeFeature();
+    process.env.GIT_TEST_ASSUME_DIFFERENT_OWNER = "1";
+
+    const fromRoot = cumulativeDiff(createGitPort(r.repo), { baseRef: "main" });
+    const fromSubdirectory = cumulativeDiff(createGitPort(join(r.repo, "src")), {
+      baseRef: "main",
+    });
+
+    expect(fromRoot.files.map((f) => f.path)).toEqual([
+      "src/app.ts",
+      "src/diff/new.ts",
+      "src/gone.ts",
+    ]);
+    expect(fromSubdirectory.patchId).toBe(fromRoot.patchId);
+  });
+
+  test("includes git's own reason when HEAD does not resolve", () => {
+    const r = makeRepo();
+    r.publishMain();
+    r.git("checkout", "-q", "--orphan", "unborn");
+
+    expect(() => cumulativeDiff(r.port, { baseRef: "main" })).toThrow(/HEAD.*fatal: /);
   });
 
   test("ignores hostile system, global and repo config and injected config parameters", () => {
@@ -313,16 +429,41 @@ describe("interdiff against a real repository", () => {
     expect(result.rangeDiff).toContain("later, amended");
   });
 
-  test("does not pass base-only changes off as incremental after an update-branch merge", () => {
+  test("reports an update-branch merge since the previous head as unreachable", () => {
     const r = makeFeature();
     const previousHead = r.git("rev-parse", "HEAD");
     r.git("merge", "-q", "--no-ff", "-m", "Merge branch 'main' into feature", "origin/main");
 
     const result = interdiff(r.port, { baseRef: "main", previousHead });
 
-    expect(result.kind).toBe("rebased");
-    if (result.kind !== "rebased") return;
-    expect(result.rangeDiff).not.toContain("other.ts");
+    expect(result).toEqual({ kind: "unreachable", previousHead });
+  });
+
+  test("does not let code added inside a merge commit slip through a range-diff", () => {
+    const r = makeFeature();
+    const previousHead = r.git("rev-parse", "HEAD");
+    r.git("merge", "-q", "--no-ff", "--no-commit", "origin/main");
+    r.write("src/backdoor.ts", "export const open = true;\n");
+    r.git("add", "-A");
+    r.git("commit", "-q", "-m", "Merge branch 'main' into feature");
+
+    const result = interdiff(r.port, { baseRef: "main", previousHead });
+
+    expect(result).toEqual({ kind: "unreachable", previousHead });
+  });
+
+  test("reports a rewritten branch that now carries a merge commit as unreachable", () => {
+    const r = makeFeature();
+    const previousHead = r.git("rev-parse", "HEAD");
+    r.git("commit", "-q", "--amend", "-m", "feature work, reworded");
+    r.git("merge", "-q", "--no-ff", "--no-commit", "origin/main");
+    r.write("src/backdoor.ts", "export const open = true;\n");
+    r.git("add", "-A");
+    r.git("commit", "-q", "-m", "Merge branch 'main' into feature");
+
+    const result = interdiff(r.port, { baseRef: "main", previousHead });
+
+    expect(result).toEqual({ kind: "unreachable", previousHead });
   });
 
   test("reports a previous head lost to a force-push as unreachable", () => {
