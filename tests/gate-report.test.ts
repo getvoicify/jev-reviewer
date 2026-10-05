@@ -203,11 +203,27 @@ describe("renderCheckOutput summary", () => {
     expect(bullets).toEqual(failing.reasons.map((reason) => `- ${reason}`));
   });
 
-  test("says so when an evaluation was reused from the previous push without a Jev call", () => {
-    const reused = renderCheckOutput(input({ reused: true })).summary;
+  test("says when the previous push's evaluation was reused", () => {
+    const { summary } = renderCheckOutput(input({ reused: "previous" }));
+    expect(summary).toContain(
+      "Reused the previous push's evaluation (same patch-id), so no Jev call was made.",
+    );
+    expect(summary).not.toContain("this head's");
+  });
+
+  test("says when this head's earlier evaluation was reused", () => {
+    const { summary } = renderCheckOutput(input({ reused: "head" }));
+    expect(summary).toContain(
+      "Reused this head's earlier evaluation (re-run, reopen or override), so no Jev call was made.",
+    );
+    expect(summary).not.toContain("previous push");
+    expect(renderComment(input({ reused: "head" }))).toContain(
+      "Reused this head's earlier evaluation (re-run, reopen or override), so no Jev call was made.",
+    );
+  });
+
+  test("says nothing about reuse for a fresh score", () => {
     const fresh = renderCheckOutput(input({ reused: false })).summary;
-    expect(reused).toMatch(/reused from the previous push/i);
-    expect(reused).toMatch(/no Jev call/i);
     expect(fresh).not.toMatch(/reused/i);
     expect(fresh).toMatch(/scored fresh/i);
   });
@@ -523,7 +539,7 @@ describe("renderComment", () => {
   });
 
   test("carries the summary and the metric table", () => {
-    const rendered = input({ verdict: failing, reused: true });
+    const rendered = input({ verdict: failing, reused: "previous" });
     const comment = renderComment(rendered);
     expect(comment).toContain(renderCheckOutput(rendered).summary);
     expect(tableRows(comment).map((cells) => cells[0])).toEqual(metricKeys.map(labelOf));

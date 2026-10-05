@@ -426,7 +426,9 @@ describe("runGate: fingerprint and previous record", () => {
       expect(records.reads[0]).toBe(`list ${recordArtifactName(HEAD)}`);
       expect(records.reads).not.toContain(`list ${recordArtifactName(BEFORE)}`);
       expect(jev.requests).toHaveLength(0);
-      expect(check.summary).not.toContain("scored fresh");
+      expect(check.summary).toContain(
+        "Reused this head's earlier evaluation (re-run, reopen or override), so no Jev call was made.",
+      );
     });
   }
 
@@ -461,7 +463,9 @@ describe("runGate: reuse", () => {
     const { jev, records, check } = await run({ previous: previousRecord() });
     expect(jev.requests).toHaveLength(0);
     expect(check.conclusion).toBe("success");
-    expect(check.summary).toContain("reused from the previous push");
+    expect(check.summary).toContain(
+      "Reused the previous push's evaluation (same patch-id), so no Jev call was made.",
+    );
     const saved = decodeRecord(records.uploads[0]?.content ?? null);
     expect(records.uploads[0]?.name).toBe(recordArtifactName(HEAD));
     expect(saved).toEqual({ ...previousRecord(), head: HEAD });
@@ -484,7 +488,9 @@ describe("runGate: reuse", () => {
       previous: previousRecord(),
     });
     expect(jev.requests).toHaveLength(0);
-    expect(check.summary).toContain("reused from the previous push");
+    expect(check.summary).toContain(
+      "Reused the previous push's evaluation (same patch-id), so no Jev call was made.",
+    );
     expect(check.conclusion).toBe("neutral");
     expect(check.summary).toContain(`${UNREVIEWED_EXCLUDED_REASON}: 1`);
   });
