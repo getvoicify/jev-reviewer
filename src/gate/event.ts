@@ -10,6 +10,8 @@ export interface GateEvent {
 interface PullRequestPayload {
   action?: unknown;
   before?: unknown;
+  label?: { name?: unknown } | null;
+  sender?: { login?: unknown } | null;
   pull_request?: { number?: unknown; base?: { ref?: unknown }; head?: { sha?: unknown } };
 }
 
@@ -37,5 +39,11 @@ export function gateContextFromEvent(event: GateEvent, trustedEvent: string): Ga
     beforeSha:
       eventAction === "synchronize" && typeof payload.before === "string" ? payload.before : null,
     eventAction,
+    triggerLabel: stringOrNull(payload.label?.name),
+    sender: stringOrNull(payload.sender?.login),
   };
+}
+
+function stringOrNull(value: unknown): string | null {
+  return typeof value === "string" ? value : null;
 }

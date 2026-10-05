@@ -38,6 +38,8 @@ export interface GateContext {
   headSha: string;
   beforeSha: string | null;
   eventAction: string;
+  triggerLabel: string | null;
+  sender: string | null;
 }
 
 export interface GateSettings {
@@ -148,7 +150,7 @@ function settled(
 
 export async function runGate(deps: GateDeps): Promise<void> {
   const settings = withDefaults(deps.settings);
-  const overridable = await clearStaleOverride(deps, settings);
+  await clearStaleOverride(deps, settings);
   const outcome = await decide(deps, settings);
   if (outcome.verdict.conclusion === "neutral") {
     outcome.verdict.reasons.push(
@@ -156,21 +158,19 @@ export async function runGate(deps: GateDeps): Promise<void> {
     );
   }
   await report(deps, settings, outcome);
-  await conclude(deps, settings, outcome.verdict, overridable);
+  await conclude(deps, settings, outcome.verdict);
 }
 
-async function clearStaleOverride(deps: GateDeps, settings: Settings): Promise<boolean> {
+async function clearStaleOverride(deps: GateDeps, settings: Settings): Promise<void> {
   const { context, github, io } = deps;
-  if (!PUSH_ACTIONS.includes(context.eventAction)) return true;
+  if (!PUSH_ACTIONS.includes(context.eventAction)) return;
   try {
     await github.removeLabel(context.owner, context.repo, context.prNumber, settings.overrideLabel);
     io.info(`removed the "${settings.overrideLabel}" label, so no earlier push's override applies`);
-    return true;
   } catch (error) {
     io.warning(
       `Could not remove the "${settings.overrideLabel}" label, so no override is honoured on this run: ${messageOf(error)}`,
     );
-    return false;
   }
 }
 
@@ -372,21 +372,29 @@ async function report(deps: GateDeps, settings: Settings, outcome: Outcome): Pro
   );
 }
 
-async function conclude(
-  deps: GateDeps,
-  settings: Settings,
-  verdict: Verdict,
-  overridable: boolean,
-): Promise<void> {
+async function conclude(deps: GateDeps, settings: Settings, verdict: Verdict): Promise<void> {
   const first = verdict.reasons[0] ?? `Jev gate: ${verdict.conclusion}`;
   if (verdict.conclusion === "success") return;
-  if (verdict.conclusion === "neutral" && overridable && (await overrideApproved(deps, settings))) {
+  if (
+    verdict.conclusion === "neutral" &&
+    appliedByOverrideActor(deps.context, settings) &&
+    (await overrideApproved(deps, settings))
+  ) {
     deps.io.warning(
       `Neutral gate result accepted by the "${settings.overrideLabel}" label: ${first}`,
     );
     return;
   }
   deps.io.fail(first);
+}
+
+function appliedByOverrideActor(context: GateContext, settings: Settings): boolean {
+  return (
+    context.eventAction === "labeled" &&
+    context.triggerLabel === settings.overrideLabel &&
+    context.sender !== null &&
+    settings.overrideActors.includes(context.sender)
+  );
 }
 
 async function overrideApproved(deps: GateDeps, settings: Settings): Promise<boolean> {

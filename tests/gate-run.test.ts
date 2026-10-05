@@ -257,7 +257,7 @@ async function run(scenario: Scenario = {}) {
 }
 
 const OWNER = "verygreenboi";
-const OWNER_ACTORS = { overrideActors: [OWNER] };
+const OWNER_ACTORS = { overrideActors: ["release-manager", OWNER] };
 
 function labeledBy(sender: string, triggerLabel = "jev-gate:override"): Partial<GateContext> {
   return { eventAction: "labeled", beforeSha: null, triggerLabel, sender };
@@ -696,7 +696,13 @@ describe("runGate: exit", () => {
     expect(io.failures).toEqual([]);
     expect(io.warnings.some((line) => line.includes("jev-gate:override"))).toBe(true);
     expect(github.overrideQueries).toEqual([
-      { owner: "o", repo: "r", prNumber: 7, label: "jev-gate:override", actors: [OWNER] },
+      {
+        owner: "o",
+        repo: "r",
+        prNumber: 7,
+        label: "jev-gate:override",
+        actors: ["release-manager", OWNER],
+      },
     ]);
   });
 
