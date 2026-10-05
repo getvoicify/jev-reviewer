@@ -1,0 +1,34 @@
+# Jev metric gate, enforcing: required on tutela by an org ruleset workflows rule.
+# Rollout and rationale: docs/rollout-required-gate.md; shape pinned by tests/required-workflow.test.ts.
+name: Jev gate (required)
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+
+permissions: {}
+
+concurrency:
+  group: jev-gate-required-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  required-gate:
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+      checks: write
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: getvoicify/jev-reviewer@ed390f481d8c724a40e4469936c3ba9fb097974a
+        with:
+          mode: gate
+          typesafe-api-key: ${{ secrets.TYPESAFE_API_KEY }}
+          trusted-workflow-path: unverified-until-the-canary-run
+          check-name: jev-gate-required
