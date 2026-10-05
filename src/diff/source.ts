@@ -1,49 +1,73 @@
 import { parseUnifiedDiff } from "../diffparse";
-import type { GitPort } from "./git";
+import { excludePaths } from "./exclude";
+import type { ChangedFile, GitPort } from "./git";
 import type { CumulativeDiff, DiffFile, Interdiff } from "./types";
 
 const COMMIT_ID = /^[0-9a-f]{7,64}$/;
 const FILE_HEADER = /^diff --git /gm;
+const FETCH_HINT = "check out with actions/checkout fetch-depth: 0";
 
 export function cumulativeDiff(
   git: GitPort,
-  { baseRef, headRef = "HEAD" }: { baseRef: string; headRef?: string; exclude?: string[] },
+  options: { baseRef: string; headRef?: string; exclude?: string[] },
 ): CumulativeDiff {
+  const headRef = options.headRef ?? "HEAD";
+  const baseName = `origin/${options.baseRef}`;
   const head = git.resolve(headRef);
-  const mergeBase = git.mergeBase(git.resolve(`origin/${baseRef}`), head);
-  const raw = git.diff(`${mergeBase}...${head}`);
-  return { mergeBase, head, files: splitPerFile(raw), excluded: [], patchId: git.patchId(raw) };
+  if (!head) throw new Error(`${headRef} does not resolve to a commit`);
+  const base = git.resolve(baseName);
+  if (!base) throw new Error(`${baseName} is not in this checkout; ${FETCH_HINT}`);
+  const mergeBase = git.mergeBase(base, head);
+  if (!mergeBase) {
+    throw new Error(
+      `${baseName} and ${headRef} share no history here (shallow or unrelated); ${FETCH_HINT}`,
+    );
+  }
+  const range = `${mergeBase}...${head}`;
+  const files = pairWithPatches(git.changedFiles(range, mergeBase), git.diff(range, mergeBase));
+  const { kept, excluded } = excludePaths(files, options.exclude);
+  const patchId = kept.length > 0 ? git.patchId(kept.map((f) => f.patch).join("")) : null;
+  return { mergeBase, head, files: kept, excluded, patchId };
 }
 
 export function interdiff(
   git: GitPort,
   options: { baseRef: string; previousHead: string; headRef?: string },
 ): Interdiff {
-  const { baseRef, previousHead } = options;
-  if (!COMMIT_ID.test(previousHead) || !git.hasCommit(previousHead)) {
-    return { kind: "unreachable", previousHead };
-  }
+  const { previousHead } = options;
+  const unreachable: Interdiff = { kind: "unreachable", previousHead };
+  if (!COMMIT_ID.test(previousHead) || !git.hasCommit(previousHead)) return unreachable;
   const head = git.resolve(options.headRef ?? "HEAD");
-  if (git.isAncestor(previousHead, head)) {
-    return { kind: "incremental", previousHead, head, patch: git.diff(`${previousHead}..${head}`) };
+  const base = git.resolve(`origin/${options.baseRef}`);
+  if (!head || !base) return unreachable;
+  const headBase = git.mergeBase(base, head);
+  if (!headBase) return unreachable;
+  if (git.isAncestor(previousHead, head) && !git.hasMerges(`${previousHead}..${head}`)) {
+    const patch = git.diff(`${previousHead}..${head}`, headBase);
+    return { kind: "incremental", previousHead, head, patch };
   }
-  const base = git.resolve(`origin/${baseRef}`);
-  const rangeDiff = git.rangeDiff(
-    `${git.mergeBase(base, previousHead)}..${previousHead}`,
-    `${git.mergeBase(base, head)}..${head}`,
-  );
+  const previousBase = git.mergeBase(base, previousHead);
+  if (!previousBase) return unreachable;
+  const rangeDiff = git.rangeDiff(`${previousBase}..${previousHead}`, `${headBase}..${head}`);
   return { kind: "rebased", previousHead, head, rangeDiff };
 }
 
-function splitPerFile(raw: string): DiffFile[] {
+function pairWithPatches(changed: ChangedFile[], raw: string): DiffFile[] {
   const starts = [...raw.matchAll(FILE_HEADER)].map((m) => m.index);
-  return starts.map((start, i) => {
-    const patch = raw.slice(start, starts[i + 1] ?? raw.length);
-    const parsed = parseUnifiedDiff(patch)[0];
-    const lines = parsed?.hunks.flatMap((h) => h.lines) ?? [];
+  const sections = starts.map((start, i) => raw.slice(start, starts[i + 1] ?? raw.length));
+  const expected = changed.reduce((n, f) => n + (f.status === "T" ? 2 : 1), 0);
+  if (expected !== sections.length) {
+    throw new Error(`git listed ${expected} patch sections but produced ${sections.length}`);
+  }
+  let next = 0;
+  return changed.map((entry) => {
+    const take = entry.status === "T" ? 2 : 1;
+    const patch = sections.slice(next, next + take).join("");
+    next += take;
+    const lines = parseUnifiedDiff(patch).flatMap((f) => f.hunks.flatMap((h) => h.lines));
     return {
-      path: parsed?.filename ?? "",
-      oldPath: null,
+      path: entry.path,
+      oldPath: entry.oldPath,
       added: lines.filter((l) => l.startsWith("+")).length,
       deleted: lines.filter((l) => l.startsWith("-")).length,
       patch,

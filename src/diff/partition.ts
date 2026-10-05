@@ -1,9 +1,9 @@
 import type { DiffFile, Partition, PartitionBudget } from "./types";
 
-const CHARS_PER_TOKEN = 3.5;
+const BYTES_PER_TOKEN = 3;
 
 export function estimateTokens(text: string): number {
-  return Math.ceil(text.length / CHARS_PER_TOKEN);
+  return Math.ceil(Buffer.byteLength(text, "utf8") / BYTES_PER_TOKEN);
 }
 
 export function moduleOf(path: string): string {
@@ -20,8 +20,16 @@ function tokensOf(files: DiffFile[]): number {
   return estimateTokens(files.map((f) => f.patch).join(""));
 }
 
-export function partition(files: DiffFile[], { limitTokens }: PartitionBudget): Partition[] {
-  const budgetTokens = limitTokens;
+export function partition(
+  files: DiffFile[],
+  { limitTokens, reservedTokens }: PartitionBudget,
+): Partition[] {
+  const budgetTokens = limitTokens - reservedTokens;
+  if (budgetTokens <= 0) {
+    throw new RangeError(
+      `reservedTokens ${reservedTokens} leaves no room within limitTokens ${limitTokens}`,
+    );
+  }
   const sorted = [...files].sort(byPath);
   if (sorted.length === 0) return [];
 

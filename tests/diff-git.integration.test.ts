@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { createGitPort } from "../src/diff/git";
@@ -11,7 +11,7 @@ const savedEnv = { ...process.env };
 
 afterEach(() => {
   for (const dir of cleanups.splice(0)) rmSync(dir, { recursive: true, force: true });
-  for (const key of ["GIT_CONFIG_GLOBAL", "GIT_CONFIG_PARAMETERS"]) {
+  for (const key of ["GIT_CONFIG_GLOBAL", "GIT_CONFIG_SYSTEM", "GIT_CONFIG_PARAMETERS"]) {
     if (savedEnv[key] === undefined) delete process.env[key];
     else process.env[key] = savedEnv[key];
   }
@@ -130,6 +130,29 @@ describe("cumulativeDiff against a real repository", () => {
     expect(result.excluded).toEqual([{ path: "my dir/bun.lock", pattern: "**/bun.lock" }]);
   });
 
+  test("keeps a file that became a symlink as one entry with both of its patch sections", () => {
+    const r = makeRepo();
+    r.write("target.ts", "export const t = 1;\n");
+    r.write("was-file.ts", "export const w = 1;\n");
+    r.write("zz.ts", "export const z = 1;\n");
+    r.commit("seed");
+    r.git("branch", "-f", "main", "HEAD");
+    r.publishMain();
+    r.remove("was-file.ts");
+    symlinkSync("target.ts", join(r.repo, "was-file.ts"));
+    r.write("zz.ts", "export const z = 2;\n");
+    r.commit("type change");
+
+    const result = cumulativeDiff(r.port, { baseRef: "main" });
+
+    expect(result.files.map((f) => [f.path, f.added, f.deleted])).toEqual([
+      ["was-file.ts", 1, 1],
+      ["zz.ts", 1, 1],
+    ]);
+    expect(result.files[0]?.patch.match(/^diff --git /gm)?.length).toBe(2);
+    expect(result.files[1]?.patch).toContain("+export const z = 2;");
+  });
+
   test("reads .gitattributes from the merge-base, so a PR cannot mark its own code binary", () => {
     const r = makeRepo();
     r.publishMain();
@@ -147,7 +170,7 @@ describe("cumulativeDiff against a real repository", () => {
     expect(byPath.get("assets/logo.bin")?.added).toBe(0);
   });
 
-  test("ignores a hostile global config and injected config parameters", () => {
+  test("ignores hostile system, global and repo config and injected config parameters", () => {
     const r = makeRepo();
     const body = Array.from({ length: 10 }, (_, i) => `line ${i}\n`).join("");
     r.write("before.txt", body);
@@ -161,13 +184,21 @@ describe("cumulativeDiff against a real repository", () => {
     r.git("add", "-A");
     r.git("update-index", "--add", "--cacheinfo", `160000,${r.forkPoint},vendor/sub`);
     r.git("commit", "-q", "-m", "rename and submodule");
-    const hostile = join(r.repo, "..", `${r.repo.split("/").pop()}-hostile.gitconfig`);
-    cleanups.push(hostile);
+    r.git("config", "diff.renames", "false");
+    r.git("config", "diff.submodule", "log");
+    const scratch = mkdtempSync(join(tmpdir(), "jev-hostile-"));
+    cleanups.push(scratch);
+    const hideEverything = join(scratch, "attributes");
+    writeFileSync(hideEverything, "* -diff\n");
+    const hostileGlobal = join(scratch, "global.gitconfig");
     writeFileSync(
-      hostile,
-      "[diff]\n\trenames = false\n\tsubmodule = log\n\tnoprefix = true\n[color]\n\tdiff = always\n",
+      hostileGlobal,
+      `[diff]\n\trenames = false\n\tsubmodule = log\n\tnoprefix = true\n[color]\n\tdiff = always\n[core]\n\tattributesFile = ${hideEverything}\n`,
     );
-    process.env.GIT_CONFIG_GLOBAL = hostile;
+    const hostileSystem = join(scratch, "system.gitconfig");
+    writeFileSync(hostileSystem, `[core]\n\tattributesFile = ${hideEverything}\n`);
+    process.env.GIT_CONFIG_GLOBAL = hostileGlobal;
+    process.env.GIT_CONFIG_SYSTEM = hostileSystem;
     process.env.GIT_CONFIG_PARAMETERS = "'diff.context'='0'";
 
     const result = cumulativeDiff(createGitPort(r.repo), { baseRef: "main" });
