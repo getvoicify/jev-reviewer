@@ -35,6 +35,8 @@ let forkPoint: string;
 beforeAll(() => {
   repo = mkdtempSync(join(tmpdir(), "jev-diff-"));
   git("init", "-q", "-b", "main");
+  git("config", "diff.noprefix", "true");
+  git("config", "color.diff", "always");
   write("src/app.ts", "export const a = 1;\nexport const b = 2;\n");
   write("src/gone.ts", "export const gone = true;\n");
   write("bun.lock", "lock v1\n");
@@ -73,9 +75,14 @@ describe("cumulativeDiff against a real repository", () => {
     for (const file of result.files) {
       expect(file.patch.startsWith(`diff --git a/${file.path} b/${file.path}\n`)).toBe(true);
     }
-    expect(result.files.map((f) => f.patch).join("")).toBe(
-      git("diff", "--no-color", `${forkPoint}...HEAD`) + "\n",
+    const plain = git(
+      "diff",
+      "--no-color",
+      "--src-prefix=a/",
+      "--dst-prefix=b/",
+      `${forkPoint}...HEAD`,
     );
+    expect(result.files.map((f) => f.patch).join("")).toBe(`${plain}\n`);
     expect(result.patchId).toMatch(/^[0-9a-f]{40}$/);
   });
 

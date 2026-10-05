@@ -61,15 +61,16 @@ describe("partition", () => {
         file("pkg/b/one.ts", 70),
         file("pkg/b/two.ts", 70),
         file("pkg/a/two.ts", 70),
+        file("pkg/c/one.ts", 70),
       ],
       60,
     );
 
     expect(shape(parts)).toEqual([
       { files: ["pkg/a/one.ts", "pkg/a/two.ts"], oversized: false },
-      { files: ["pkg/b/one.ts", "pkg/b/two.ts"], oversized: false },
+      { files: ["pkg/b/one.ts", "pkg/b/two.ts", "pkg/c/one.ts"], oversized: false },
     ]);
-    expect(parts.map((p) => p.modules)).toEqual([["pkg/a"], ["pkg/b"]]);
+    expect(parts.map((p) => p.modules)).toEqual([["pkg/a"], ["pkg/b", "pkg/c"]]);
   });
 
   test("packs several small modules into one partition when they fit", () => {
@@ -85,7 +86,7 @@ describe("partition", () => {
   test("spreads a module larger than the budget over partitions without splitting a file", () => {
     const files = [file("big/m/1.ts", 70), file("big/m/2.ts", 70), file("big/m/3.ts", 70)];
 
-    const parts = partition(files, 45);
+    const parts = partition(files, 40);
 
     expect(shape(parts)).toEqual([
       { files: ["big/m/1.ts", "big/m/2.ts"], oversized: false },

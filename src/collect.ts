@@ -4,8 +4,7 @@ import { parseUnifiedDiff } from "./diffparse";
 import type { DiffSource } from "./github";
 import type { CollectOptions, CollectResult, DiffChunk, SkippedFile } from "./types";
 
-/** Built-in default ignore list; replaced entirely when `ignoreGlobs` is provided. */
-const DEFAULT_IGNORE_GLOBS = [
+export const DEFAULT_IGNORE_GLOBS = [
   "**/package-lock.json",
   "**/yarn.lock",
   "**/pnpm-lock.yaml",
