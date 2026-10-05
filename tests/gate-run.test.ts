@@ -139,6 +139,7 @@ type GitHubOptions = {
   config?: string | null;
   checkErrors?: unknown[];
   approved?: boolean | Error;
+  labelPredatesRun?: boolean;
   removeError?: unknown;
   log?: string[];
 };
@@ -155,6 +156,7 @@ function fakeGitHub(options: GitHubOptions = {}) {
     async overrideApproved(query: OverrideQuery) {
       overrideQueries.push(query);
       if (options.approved instanceof Error) throw options.approved;
+      if (options.labelPredatesRun && removedLabels.length > 0) return false;
       return options.approved ?? false;
     },
     async removeLabel(_owner: string, _repo: string, prNumber: number, label: string) {
@@ -211,6 +213,7 @@ type Scenario = {
   uploadError?: unknown;
   checkErrors?: unknown[];
   approved?: boolean | Error;
+  labelPredatesRun?: boolean;
   removeError?: unknown;
   context?: Partial<GateContext>;
   settings?: Record<string, unknown>;
@@ -741,7 +744,37 @@ describe("runGate: binding the override to a push", () => {
     expect(github.removedLabels).toEqual([{ prNumber: 7, label: "accept-neutral" }]);
   });
 
-  for (const eventAction of ["opened", "reopened", "labeled"]) {
+  for (const eventAction of ["synchronize", "reopened"]) {
+    test(`removes the override label on a ${eventAction} run before evaluating`, async () => {
+      const { github, log } = await run({ context: { eventAction } });
+      expect(github.removedLabels).toEqual([{ prNumber: 7, label: "jev-gate:override" }]);
+      expect(log.indexOf("removeLabel")).toBe(0);
+      expect(log.indexOf("getFileContent")).toBeGreaterThan(0);
+    });
+
+    test(`does not honour a label that predates a ${eventAction} run`, async () => {
+      const { io } = await run({
+        replies: [new JevError("connection", "down")],
+        approved: true,
+        labelPredatesRun: true,
+        context: { eventAction },
+      });
+      expect(io.failures).toEqual(["evaluator unavailable: connection"]);
+    });
+
+    test(`refuses the override when removal fails on a ${eventAction} run`, async () => {
+      const { io, github } = await run({
+        replies: [new JevError("connection", "down")],
+        approved: true,
+        removeError: Object.assign(new Error("Resource not accessible"), { status: 403 }),
+        context: { eventAction },
+      });
+      expect(io.failures).toEqual(["evaluator unavailable: connection"]);
+      expect(github.overrideQueries).toEqual([]);
+    });
+  }
+
+  for (const eventAction of ["opened", "labeled"]) {
     test(`leaves the label alone on a ${eventAction} run`, async () => {
       const { github } = await run({ context: { eventAction } });
       expect(github.removedLabels).toEqual([]);
