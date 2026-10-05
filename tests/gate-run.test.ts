@@ -507,6 +507,7 @@ describe("runGate: changed-line cap", () => {
     expect(jev.requests).toHaveLength(0);
     expect(records.reads).toEqual([]);
     expect(records.uploads).toEqual([]);
+    expect(io.infos.slice(-2)).toEqual(["changed lines: 401 (limit 400)", "record saved: no"]);
     expect(check.title).toContain(reason.slice(0, 60));
     expect(check.summary).toContain("Changed lines in reviewed files: 401 · Limit: 400");
     expect(github.comments.at(-1)?.body).toContain(

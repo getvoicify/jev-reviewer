@@ -5,7 +5,7 @@ import { parseArgs } from "node:util";
 import { createGitPort } from "../src/diff/git";
 import { partition } from "../src/diff/partition";
 import { cumulativeDiff } from "../src/diff/source";
-import { parseGateConfig } from "../src/gate/config";
+import { type GateConfig, GateConfigError, parseGateConfig } from "../src/gate/config";
 import { gateFlags } from "../src/gate/flags";
 import { changedLines, type GateGitHubPort, runGate } from "../src/gate/run";
 import type { GateCheckRunParams } from "../src/github";
@@ -30,12 +30,13 @@ export type DriveArgs = {
   sender: string | null;
   label: string | null;
   model: string;
+  overrideActors: string[];
 };
 
 export class DriveArgsError extends Error {}
 
 export function parseDriveArgs(argv: string[], env: Record<string, string | undefined>): DriveArgs {
-  let values: Record<string, string | boolean | undefined>;
+  let values: Record<string, string | boolean | string[] | undefined>;
   try {
     ({ values } = parseArgs({
       args: argv,
@@ -52,6 +53,7 @@ export function parseDriveArgs(argv: string[], env: Record<string, string | unde
         sender: { type: "string" },
         label: { type: "string" },
         model: { type: "string", default: "jev-latest" },
+        "override-actor": { type: "string", multiple: true },
       },
     }));
   } catch (error) {
@@ -99,6 +101,7 @@ export function parseDriveArgs(argv: string[], env: Record<string, string | unde
     sender,
     label,
     model: text("model") ?? "jev-latest",
+    overrideActors: (values["override-actor"] as string[] | undefined) ?? ["verygreenboi"],
   };
 }
 
@@ -109,6 +112,15 @@ function readConfigText(args: DriveArgs): string | null {
     encoding: "utf8",
   });
   return shown.status === 0 ? shown.stdout : null;
+}
+
+function parsedOrNull(configText: string | null): GateConfig | null {
+  try {
+    return parseGateConfig(configText);
+  } catch (error) {
+    if (error instanceof GateConfigError) return null;
+    throw error;
+  }
 }
 
 function stubJev(): JevPort {
@@ -149,11 +161,15 @@ function counted(port: JevPort): { port: JevPort; calls: () => number } {
 }
 
 export async function drive(args: DriveArgs, print: (line: string) => void): Promise<void> {
-  const configText = readConfigText(args);
-  const config = parseGateConfig(configText);
   const git = createGitPort(args.repo);
-  const diff = cumulativeDiff(git, { baseRef: args.base, exclude: config.exclude });
-  const flags = gateFlags(diff, partition(diff.files, config));
+  const checkedOut = git.resolve("HEAD");
+  if (checkedOut !== args.head) {
+    throw new Error(`the checkout is at ${checkedOut}, not --head ${args.head}`);
+  }
+  const configText = readConfigText(args);
+  const config = parsedOrNull(configText);
+  const diff = cumulativeDiff(git, { baseRef: args.base, exclude: config?.exclude });
+  const flags = config === null ? null : gateFlags(diff, partition(diff.files, config));
 
   const checks: GateCheckRunParams[] = [];
   const comments: string[] = [];
@@ -204,7 +220,7 @@ export async function drive(args: DriveArgs, print: (line: string) => void): Pro
     settings: {
       model: args.model,
       trustedWorkflow: { path: ".github/workflows/jev-gate.yml", event: "pull_request_target" },
-      overrideActors: ["verygreenboi"],
+      overrideActors: args.overrideActors,
     },
     git,
     github,
@@ -222,10 +238,12 @@ export async function drive(args: DriveArgs, print: (line: string) => void): Pro
   print(`config: ${args.configFile ?? `origin/${args.base}:${GATE_CONFIG_PATH}`}`);
   print(`plan: ${plan ?? "none (decided before planning)"}`);
   print(
-    `flags: oversized=${flags.oversized} codeChanged=${flags.codeChanged} unreviewedExcluded=${flags.unreviewedExcluded}`,
+    flags === null
+      ? "flags: not computed (invalid gate config)"
+      : `flags: oversized=${flags.oversized} codeChanged=${flags.codeChanged} unreviewedExcluded=${flags.unreviewedExcluded}`,
   );
   print(
-    `changed lines in kept files: ${changedLines(diff.files)} (limit ${config.maxChangedLines ?? "none"}) · kept files: ${diff.files.length} · excluded files: ${diff.excluded.length}`,
+    `changed lines in kept files: ${changedLines(diff.files)} (limit ${config?.maxChangedLines ?? "none"}) · kept files: ${diff.files.length} · excluded files: ${diff.excluded.length}`,
   );
   print(`jev calls: ${jev.calls()} (${args.realJev ? "real" : "stub"})`);
   print(`verdict: ${check?.conclusion ?? "no check posted"}`);

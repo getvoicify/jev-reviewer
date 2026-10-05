@@ -207,7 +207,10 @@ bun run build      # bundles src/index.ts -> dist/index.js (committed)
 `scripts/drive-gate.ts` runs the gate against a local checkout with the real git port and prints
 what it would post, writing nothing to GitHub. Check out the head first, then
 `bun scripts/drive-gate.ts --repo <checkout> --base main --head <sha> --action opened --config <gate.json>`.
-It uses a fixed stub Jev unless `--real-jev` is passed with `TYPESAFE_API_KEY` set.
+It refuses to run unless the checkout is at `--head`, uses a fixed stub Jev unless `--real-jev` is
+passed with `TYPESAFE_API_KEY` set, and simulates a labeled run with `--action labeled --sender <login>
+--label jev-gate:override --approve-override`; `--override-actor` (repeatable, default `verygreenboi`)
+sets who may override.
 
 `dist/index.js` is committed — the action runtime executes it directly with Node 20, so consumers
 never need Bun. After changing `src/`, run `bun run build` and commit the new bundle.

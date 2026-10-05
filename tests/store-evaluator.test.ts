@@ -143,6 +143,12 @@ describe("evaluatorFingerprint over the gate config", () => {
     });
   }
 
+  test("keeps the hash an uncapped default config had before maxChangedLines existed", () => {
+    expect(evaluatorFingerprint("jev-latest", defaults)).toBe(
+      "9dfe2b931d8acff6724f47eb8f445adb00e5e2718fc6128f5fb8b2507d871e79",
+    );
+  });
+
   test("changes when the changed-line cap moves", () => {
     expect(evaluatorFingerprint("jev-latest", gate({ maxChangedLines: 400 }))).not.toBe(
       evaluatorFingerprint("jev-latest", gate({ maxChangedLines: 401 })),
