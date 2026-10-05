@@ -33,8 +33,10 @@ describe("parseGateConfig", () => {
     });
   });
 
-  test("accepts an empty gated map, gating nothing", () => {
-    expect(parseGateConfig(file({ version: 1, gated: {} })).gated).toEqual({});
+  test("accepts reservedTokens one below limitTokens", () => {
+    expect(
+      parseGateConfig(file({ version: 1, limitTokens: 5000, reservedTokens: 4999 })),
+    ).toMatchObject({ limitTokens: 5000, reservedTokens: 4999 });
   });
 
   test("accepts every field at once", () => {
@@ -86,6 +88,21 @@ describe("parseGateConfig", () => {
       ["a zero limitTokens", file({ version: 1, limitTokens: 0 }), /limitTokens/],
       ["a negative reservedTokens", file({ version: 1, reservedTokens: -1 }), /reservedTokens/],
       ["a non-string exclude pattern", file({ version: 1, exclude: [3] }), /exclude/],
+      ["an empty gated map", file({ version: 1, gated: {} }), /gated/],
+      ["a __proto__ key in gated", '{"version":1,"gated":{"__proto__":7}}', /__proto__/],
+      ["a constructor key in gated", '{"version":1,"gated":{"constructor":7}}', /constructor/],
+      ["a prototype key in gated", '{"version":1,"gated":{"prototype":7}}', /prototype/],
+      ["a top-level __proto__ key", '{"version":1,"__proto__":{"advisoryFloor":1}}', /__proto__/],
+      [
+        "reservedTokens equal to limitTokens",
+        file({ version: 1, limitTokens: 5000, reservedTokens: 5000 }),
+        /reservedTokens \(5000\) must be less than limitTokens \(5000\)/,
+      ],
+      [
+        "reservedTokens at or above the default limitTokens",
+        file({ version: 1, reservedTokens: 32000 }),
+        /reservedTokens \(32000\) must be less than limitTokens \(32000\)/,
+      ],
     ])("rejects %s", (_name, raw, message) => {
       expect(() => parseGateConfig(raw)).toThrow(GateConfigError);
       expect(() => parseGateConfig(raw)).toThrow(message);

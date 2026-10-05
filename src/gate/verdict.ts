@@ -1,4 +1,5 @@
 import { type Evaluation, type MetricKey, metricKeys } from "../metrics";
+import { aggregateEvaluations, type PartitionEvaluation } from "./aggregate";
 import type { GateConfig } from "./config";
 
 export type MetricStatus = "pass" | "fail" | "inconclusive" | "warn" | "not_applicable";
@@ -24,10 +25,15 @@ export const OVERSIZED_REASON =
 type Assessed = MetricVerdict & { reason: string | null };
 
 export function decideVerdict(
-  evaluation: Evaluation,
+  parts: PartitionEvaluation[],
   config: GateConfig,
-  flags: { oversized: boolean },
+  flags: { oversized: boolean; codeChanged: boolean },
 ): Verdict {
+  const evaluation = aggregateEvaluations(
+    parts,
+    Object.keys(config.gated) as MetricKey[],
+    config.minConfidence,
+  );
   const assessed = metricKeys.map((key) => assess(key, evaluation, config));
   const reasonsFor = (status: MetricStatus) =>
     assessed.flatMap((entry) =>

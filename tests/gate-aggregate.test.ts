@@ -1,11 +1,14 @@
 import { describe, expect, test } from "bun:test";
-import { aggregateEvaluations } from "../src/gate/aggregate";
+import { aggregateEvaluations, type PartitionEvaluation } from "../src/gate/aggregate";
 import { type Evaluation, type MetricEvaluation, type MetricKey, metricKeys } from "../src/metrics";
 import { evaluationSchema } from "../src/metrics/schema";
 import currentFixture from "./fixtures/metric-evaluation-current.json";
 import previousFixture from "./fixtures/metric-evaluation-previous.json";
 
 const GATED: readonly MetricKey[] = ["correctness", "security", "reliability", "testQuality"];
+
+const aggregate = (parts: PartitionEvaluation[], gatedKeys: readonly MetricKey[] = GATED) =>
+  aggregateEvaluations(parts, gatedKeys, 0.5);
 
 function evaluation(
   metrics: Partial<Record<MetricKey, MetricEvaluation>>,
@@ -29,11 +32,11 @@ const previous = evaluationSchema.parse(previousFixture);
 
 describe("aggregateEvaluations", () => {
   test("refuses to aggregate zero partitions", () => {
-    expect(() => aggregateEvaluations([], GATED)).toThrow(/at least one/);
+    expect(() => aggregate([], GATED)).toThrow(/at least one/);
   });
 
   test("returns a single partition's metrics and priorities unchanged", () => {
-    const result = aggregateEvaluations([{ evaluation: current, changedLines: 40 }], GATED);
+    const result = aggregate([{ evaluation: current, changedLines: 40 }], GATED);
     expect(result.metrics).toEqual(current.metrics);
     expect(result.priorities).toEqual(current.priorities);
   });
@@ -45,12 +48,12 @@ describe("aggregateEvaluations", () => {
       improvements: ["x"],
       regressions: ["y"],
     });
-    const result = aggregateEvaluations([{ evaluation: withDeltas, changedLines: 1 }], GATED);
+    const result = aggregate([{ evaluation: withDeltas, changedLines: 1 }], GATED);
     expect(Object.keys(result).sort()).toEqual(["metrics", "priorities"]);
   });
 
   test("produces an evaluation that passes the evaluation schema for real fixtures", () => {
-    const result = aggregateEvaluations(
+    const result = aggregate(
       [
         { evaluation: current, changedLines: 30 },
         { evaluation: previous, changedLines: 70 },
@@ -61,7 +64,7 @@ describe("aggregateEvaluations", () => {
   });
 
   test("treats a metric as applicable when any partition marks it applicable", () => {
-    const result = aggregateEvaluations(
+    const result = aggregate(
       [
         { evaluation: evaluation({}), changedLines: 10 },
         { evaluation: evaluation({ performance: scored(5, 0.8) }), changedLines: 10 },
@@ -78,7 +81,7 @@ describe("aggregateEvaluations", () => {
 
   describe("gated metrics", () => {
     test("take the lowest score across partitions so one bad module fails the PR", () => {
-      const result = aggregateEvaluations(
+      const result = aggregate(
         [
           { evaluation: evaluation({ security: scored(9, 0.9) }), changedLines: 500 },
           { evaluation: evaluation({ security: scored(4, 0.7) }), changedLines: 1 },
@@ -90,7 +93,7 @@ describe("aggregateEvaluations", () => {
     });
 
     test("ignore partitions where the metric is not applicable", () => {
-      const result = aggregateEvaluations(
+      const result = aggregate(
         [
           { evaluation: evaluation({}), changedLines: 10 },
           { evaluation: evaluation({ reliability: scored(8, 0.9) }), changedLines: 10 },
@@ -100,20 +103,64 @@ describe("aggregateEvaluations", () => {
       expect(result.metrics.reliability).toEqual({ applicable: true, score: 8, confidence: 0.9 });
     });
 
-    test("break a score tie by taking the lower confidence", () => {
-      const result = aggregateEvaluations(
+    test("break a score tie among confident partitions by taking the lower confidence", () => {
+      const result = aggregate(
         [
           { evaluation: evaluation({ correctness: scored(6, 0.9) }), changedLines: 10 },
-          { evaluation: evaluation({ correctness: scored(6, 0.3) }), changedLines: 10 },
-          { evaluation: evaluation({ correctness: scored(6, 0.6) }), changedLines: 10 },
+          { evaluation: evaluation({ correctness: scored(6, 0.55) }), changedLines: 10 },
+          { evaluation: evaluation({ correctness: scored(6, 0.7) }), changedLines: 10 },
         ],
         GATED,
       );
-      expect(result.metrics.correctness).toMatchObject({ score: 6, confidence: 0.3 });
+      expect(result.metrics.correctness).toMatchObject({ score: 6, confidence: 0.55 });
+    });
+
+    test("never show a confident failure as uncertain by preferring the lowest confident partition", () => {
+      const result = aggregate(
+        [
+          { evaluation: evaluation({ security: scored(2, 0.95) }), changedLines: 10 },
+          { evaluation: evaluation({ security: scored(1, 0.2) }), changedLines: 10 },
+        ],
+        GATED,
+      );
+      expect(result.metrics.security).toMatchObject({ score: 2, confidence: 0.95 });
+    });
+
+    test("count a partition exactly at minConfidence as confident", () => {
+      const result = aggregate(
+        [
+          { evaluation: evaluation({ security: scored(5, 0.5) }), changedLines: 10 },
+          { evaluation: evaluation({ security: scored(1, 0.49) }), changedLines: 10 },
+        ],
+        GATED,
+      );
+      expect(result.metrics.security).toMatchObject({ score: 5, confidence: 0.5 });
+    });
+
+    test("take the least confident partition when no partition is confident", () => {
+      const result = aggregate(
+        [
+          { evaluation: evaluation({ security: scored(2, 0.45) }), changedLines: 10 },
+          { evaluation: evaluation({ security: scored(5, 0.3) }), changedLines: 10 },
+        ],
+        GATED,
+      );
+      expect(result.metrics.security).toMatchObject({ score: 5, confidence: 0.3 });
+    });
+
+    test("break a confidence tie among unconfident partitions by taking the lower score", () => {
+      const result = aggregate(
+        [
+          { evaluation: evaluation({ security: scored(5, 0.3) }), changedLines: 10 },
+          { evaluation: evaluation({ security: scored(4, 0.3) }), changedLines: 10 },
+        ],
+        GATED,
+      );
+      expect(result.metrics.security).toMatchObject({ score: 4, confidence: 0.3 });
     });
 
     test("carry the summary of the partition that supplied the score", () => {
-      const result = aggregateEvaluations(
+      const result = aggregate(
         [
           {
             evaluation: evaluation({ testQuality: scored(9, 0.9, { summary: "fine" }) }),
@@ -134,14 +181,14 @@ describe("aggregateEvaluations", () => {
         { evaluation: evaluation({ readability: scored(9, 0.9) }), changedLines: 10 },
         { evaluation: evaluation({ readability: scored(3, 0.9) }), changedLines: 30 },
       ];
-      expect(aggregateEvaluations(parts, ["readability"]).metrics.readability.score).toBe(3);
-      expect(aggregateEvaluations(parts, []).metrics.readability.score).toBe(4.5);
+      expect(aggregate(parts, ["readability"]).metrics.readability.score).toBe(3);
+      expect(aggregate(parts, []).metrics.readability.score).toBe(4.5);
     });
   });
 
   describe("advisory metrics", () => {
     test("take a changed-lines-weighted mean of score and confidence", () => {
-      const result = aggregateEvaluations(
+      const result = aggregate(
         [
           { evaluation: evaluation({ readability: scored(9, 0.9) }), changedLines: 30 },
           { evaluation: evaluation({ readability: scored(4, 0.4) }), changedLines: 70 },
@@ -153,7 +200,7 @@ describe("aggregateEvaluations", () => {
     });
 
     test("weight only the partitions where the metric is applicable", () => {
-      const result = aggregateEvaluations(
+      const result = aggregate(
         [
           { evaluation: evaluation({ readability: scored(8, 0.8) }), changedLines: 10 },
           { evaluation: evaluation({}), changedLines: 1000 },
@@ -166,7 +213,7 @@ describe("aggregateEvaluations", () => {
     });
 
     test("fall back to an unweighted mean when no applicable partition changed any lines", () => {
-      const result = aggregateEvaluations(
+      const result = aggregate(
         [
           { evaluation: evaluation({ duplication: scored(9, 0.9) }), changedLines: 0 },
           { evaluation: evaluation({ duplication: scored(3, 0.3) }), changedLines: 0 },
@@ -179,7 +226,7 @@ describe("aggregateEvaluations", () => {
     });
 
     test("carry the summary of the first applicable partition", () => {
-      const result = aggregateEvaluations(
+      const result = aggregate(
         [
           { evaluation: evaluation({}), changedLines: 10 },
           {
@@ -196,12 +243,34 @@ describe("aggregateEvaluations", () => {
       expect(result.metrics.coupling.summary).toBe("second");
     });
 
+    test("carry the summary of the heaviest applicable partition, the first on a tie", () => {
+      const result = aggregate(
+        [
+          {
+            evaluation: evaluation({ coupling: scored(5, 0.5, { summary: "light" }) }),
+            changedLines: 10,
+          },
+          {
+            evaluation: evaluation({ coupling: scored(5, 0.5, { summary: "heavy" }) }),
+            changedLines: 30,
+          },
+          {
+            evaluation: evaluation({ coupling: scored(5, 0.5, { summary: "equally heavy" }) }),
+            changedLines: 30,
+          },
+          { evaluation: evaluation({}), changedLines: 500 },
+        ],
+        GATED,
+      );
+      expect(result.metrics.coupling.summary).toBe("heavy");
+    });
+
     test("stay inside the schema's bounds when every partition scores the maximum", () => {
       const parts = [394, 181, 109].map((changedLines) => ({
         evaluation: evaluation({ documentation: scored(10, 1) }),
         changedLines,
       }));
-      const result = aggregateEvaluations(parts, GATED);
+      const result = aggregate(parts, GATED);
       expect(result.metrics.documentation).toMatchObject({ score: 10, confidence: 1 });
     });
   });
@@ -209,7 +278,7 @@ describe("aggregateEvaluations", () => {
   test("unions issues across partitions and drops repeats of the same severity and description", () => {
     const issue = (severity: "low" | "medium" | "high", description: string, location?: string) =>
       location === undefined ? { severity, description } : { severity, description, location };
-    const result = aggregateEvaluations(
+    const result = aggregate(
       [
         {
           evaluation: evaluation({
@@ -245,7 +314,7 @@ describe("aggregateEvaluations", () => {
       severity: "high" as const,
       reason,
     });
-    const result = aggregateEvaluations(
+    const result = aggregate(
       [
         {
           evaluation: evaluation({}, [p("security", "a"), p("correctness", "b")]),
@@ -263,5 +332,31 @@ describe("aggregateEvaluations", () => {
       p("correctness", "b"),
       p("coupling", "c"),
     ]);
+  });
+
+  describe("refuses invalid partitions on entry", () => {
+    const raw = (metrics: Partial<Record<MetricKey, MetricEvaluation>>) =>
+      ({
+        metrics: Object.fromEntries(
+          metricKeys.map((key) => [key, metrics[key] ?? { applicable: false }]),
+        ),
+        priorities: [],
+      }) as unknown as Evaluation;
+
+    test.each([
+      ["a NaN score", { applicable: true, score: Number.NaN, confidence: 0.9 }],
+      ["a NaN confidence", { applicable: true, score: 8, confidence: Number.NaN }],
+      ["an applicable metric with no score", { applicable: true }],
+      ["a score above 10", { applicable: true, score: 11, confidence: 0.9 }],
+    ])("throws on %s instead of letting it vanish or pass", (_name, security) => {
+      expect(() => aggregate([{ evaluation: raw({ security }), changedLines: 1 }])).toThrow();
+    });
+
+    test.each([-1, 1.5, Number.NaN, Number.POSITIVE_INFINITY])(
+      "throws on a changedLines of %p",
+      (changedLines) => {
+        expect(() => aggregate([{ evaluation: current, changedLines }])).toThrow(/changedLines/);
+      },
+    );
   });
 });

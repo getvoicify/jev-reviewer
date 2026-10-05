@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { DEFAULT_GATE_CONFIG, type GateConfig } from "../src/gate/config";
-import { decideVerdict } from "../src/gate/verdict";
+import { decideVerdict as decideFromParts } from "../src/gate/verdict";
 import { type Evaluation, type MetricEvaluation, type MetricKey, metricKeys } from "../src/metrics";
 
 function evaluation(metrics: Partial<Record<MetricKey, MetricEvaluation>>): Evaluation {
@@ -9,6 +9,14 @@ function evaluation(metrics: Partial<Record<MetricKey, MetricEvaluation>>): Eval
   ) as Evaluation["metrics"];
   return { metrics: all, priorities: [] };
 }
+
+type Flags = { oversized: boolean; codeChanged?: boolean };
+
+const decideVerdict = (single: Evaluation, gateConfig: GateConfig, flags: Flags) =>
+  decideFromParts([{ evaluation: single, changedLines: 10 }], gateConfig, {
+    codeChanged: true,
+    ...flags,
+  });
 
 const scored = (score: number, confidence = 0.9): MetricEvaluation => ({
   applicable: true,
@@ -136,18 +144,17 @@ describe("decideVerdict", () => {
       expect(verdict.conclusion).toBe("neutral");
     });
 
-    test("treats an applicable gated metric with no score as inconclusive", () => {
-      const verdict = decideVerdict(
-        evaluation({ ...healthy, testQuality: { applicable: true } }),
-        config,
-        calm,
-      );
-      expect(statusOf(verdict, "testQuality")).toMatchObject({
-        score: null,
-        confidence: null,
-        status: "inconclusive",
-      });
-      expect(verdict.reasons).toEqual(["testQuality is applicable but was not scored"]);
+    test("refuses an applicable gated metric with no score instead of letting it vanish", () => {
+      expect(() =>
+        decideVerdict(evaluation({ ...healthy, testQuality: { applicable: true } }), config, calm),
+      ).toThrow(/score and confidence/);
+    });
+
+    test.each([
+      ["score", { applicable: true, score: Number.NaN, confidence: 0.9 }],
+      ["confidence", { applicable: true, score: 8, confidence: Number.NaN }],
+    ])("refuses a NaN %s rather than letting it pass", (_field, security) => {
+      expect(() => decideVerdict(evaluation({ ...healthy, security }), config, calm)).toThrow();
     });
   });
 
@@ -262,6 +269,134 @@ describe("decideVerdict", () => {
     expect(verdict.reasons).toEqual([
       "correctness scored 6.99, below the minimum of 7",
       "readability scored 5.99, below the advisory floor of 6",
+    ]);
+  });
+});
+
+describe("decideVerdict across partitions", () => {
+  const security = (score: number, confidence: number, summary?: string) =>
+    evaluation({
+      ...healthy,
+      security:
+        summary === undefined
+          ? scored(score, confidence)
+          : { ...scored(score, confidence), summary },
+    });
+  const across = (...evaluations: Evaluation[]) =>
+    decideFromParts(
+      evaluations.map((each) => ({ evaluation: each, changedLines: 10 })),
+      config,
+      { oversized: false, codeChanged: true },
+    );
+
+  test("fails when one partition fails confidently even if another partition scores lower with low confidence", () => {
+    const verdict = across(security(2, 0.95), security(1, 0.2));
+    expect(verdict.conclusion).toBe("failure");
+    expect(statusOf(verdict, "security")).toMatchObject({
+      score: 2,
+      confidence: 0.95,
+      status: "fail",
+    });
+  });
+
+  test("fails when a confident failure sits beside an equally low uncertain score", () => {
+    expect(across(security(3, 0.95), security(3, 0.2)).conclusion).toBe("failure");
+  });
+
+  test("goes neutral when a confident pass sits beside an uncertain partition, never passing silently", () => {
+    const verdict = across(security(8, 0.95), security(4, 0.2));
+    expect(verdict.conclusion).toBe("neutral");
+    expect(statusOf(verdict, "security")).toMatchObject({
+      score: 4,
+      confidence: 0.2,
+      status: "inconclusive",
+    });
+  });
+
+  test("succeeds when every partition passes confidently", () => {
+    expect(across(security(8, 0.95), security(9, 0.95)).conclusion).toBe("success");
+  });
+
+  test("shows the lowest-scoring partition among those that set the status", () => {
+    const verdict = across(security(6, 0.9), security(3, 0.8), security(5, 0.7));
+    expect(statusOf(verdict, "security")).toMatchObject({ score: 3, confidence: 0.8 });
+  });
+
+  test("breaks a score tie among partitions with the same status on the lower confidence", () => {
+    const verdict = across(security(3, 0.9), security(3, 0.6), security(3, 0.8));
+    expect(statusOf(verdict, "security")).toMatchObject({ score: 3, confidence: 0.6 });
+  });
+
+  test("treats a gated metric as applicable when any partition marks it applicable", () => {
+    const { security: _omitted, ...rest } = healthy;
+    const verdict = across(evaluation(rest), security(2, 0.9));
+    expect(statusOf(verdict, "security")?.status).toBe("fail");
+  });
+
+  test("warns on an advisory metric against the changed-lines-weighted mean", () => {
+    const readability = (score: number) => evaluation({ ...healthy, readability: scored(score) });
+    const verdict = decideFromParts(
+      [
+        { evaluation: readability(9), changedLines: 10 },
+        { evaluation: readability(4), changedLines: 90 },
+      ],
+      config,
+      { oversized: false, codeChanged: true },
+    );
+    expect(statusOf(verdict, "readability")).toMatchObject({ score: 4.5, status: "warn" });
+  });
+
+  test("refuses zero partitions", () => {
+    expect(() => decideFromParts([], config, { oversized: false, codeChanged: true })).toThrow(
+      /at least one/,
+    );
+  });
+
+  test.each([-1, 1.5, Number.NaN, Number.POSITIVE_INFINITY])(
+    "refuses a partition whose changedLines is %p",
+    (changedLines) => {
+      expect(() =>
+        decideFromParts([{ evaluation: evaluation(healthy), changedLines }], config, {
+          oversized: false,
+          codeChanged: true,
+        }),
+      ).toThrow(/changedLines/);
+    },
+  );
+});
+
+describe("decideVerdict when no gated metric applies", () => {
+  const advisoryOnly = evaluation({ readability: scored(8) });
+
+  test("goes neutral on a code change where every gated metric is not applicable", () => {
+    const verdict = decideVerdict(advisoryOnly, config, { oversized: false, codeChanged: true });
+    expect(verdict.conclusion).toBe("neutral");
+    expect(verdict.reasons).toEqual(["No gated metric was applicable to a code change"]);
+  });
+
+  test("succeeds when nothing gated applies and no code changed", () => {
+    const verdict = decideVerdict(advisoryOnly, config, { oversized: false, codeChanged: false });
+    expect(verdict.conclusion).toBe("success");
+    expect(verdict.reasons).toEqual([]);
+  });
+
+  test("stays successful on a code change when only some gated metrics are not applicable", () => {
+    const verdict = decideVerdict(evaluation({ correctness: scored(8) }), config, {
+      oversized: false,
+      codeChanged: true,
+    });
+    expect(verdict.conclusion).toBe("success");
+  });
+
+  test("lists the no-gated-metric notice after the oversized notice and before warnings", () => {
+    const verdict = decideVerdict(evaluation({ readability: scored(4) }), config, {
+      oversized: true,
+      codeChanged: true,
+    });
+    expect(verdict.reasons).toEqual([
+      "A file was too large to score whole, so part of the change was not reviewed",
+      "No gated metric was applicable to a code change",
+      "readability scored 4, below the advisory floor of 6",
     ]);
   });
 });

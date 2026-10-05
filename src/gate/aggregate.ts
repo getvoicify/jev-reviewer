@@ -17,6 +17,7 @@ type ScoredPart = {
 export function aggregateEvaluations(
   parts: PartitionEvaluation[],
   gatedKeys: readonly MetricKey[],
+  _minConfidence: number,
 ): Evaluation {
   if (parts.length === 0) {
     throw new Error("Cannot aggregate evaluations: at least one partition is required.");
