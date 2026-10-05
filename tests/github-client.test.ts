@@ -250,3 +250,157 @@ describe("GitHubClient.createGateCheckRun", () => {
     });
   });
 });
+
+interface IssueEvent {
+  id: number;
+  event: string;
+  actor: { login: string } | null;
+  label?: { name: string };
+  created_at: string;
+}
+
+const OVERRIDE = "jev-gate:override";
+const OWNER = "verygreenboi";
+
+function labeled(id: number, login: string, label = OVERRIDE): IssueEvent {
+  return {
+    id,
+    event: "labeled",
+    actor: { login },
+    label: { name: label },
+    created_at: `2026-10-05T10:00:0${id}Z`,
+  };
+}
+
+function unlabeled(id: number, login: string): IssueEvent {
+  return { ...labeled(id, login), event: "unlabeled" };
+}
+
+function labelOctokit(options: {
+  events?: IssueEvent[];
+  labels?: string[];
+  error?: unknown;
+  removeError?: unknown;
+}) {
+  const calls: string[] = [];
+  const removed: Array<{ issue_number: number; name: string }> = [];
+  const issues = {
+    async listEvents(params: { issue_number: number }) {
+      calls.push(`events ${params.issue_number}`);
+      if (options.error !== undefined) throw options.error;
+      return { data: options.events ?? [] };
+    },
+    async listLabelsOnIssue(params: { issue_number: number }) {
+      calls.push(`labels ${params.issue_number}`);
+      if (options.error !== undefined) throw options.error;
+      return { data: (options.labels ?? [OVERRIDE]).map((name) => ({ name })) };
+    },
+    async removeLabel(params: { issue_number: number; name: string }) {
+      calls.push(`remove ${params.name}`);
+      removed.push(params);
+      if (options.removeError !== undefined) throw options.removeError;
+      return { data: [] };
+    },
+  };
+  const octokit = {
+    rest: { issues },
+    paginate: async (fn: (params: unknown) => Promise<{ data: unknown[] }>, params: unknown) =>
+      (await fn(params)).data,
+  } as unknown as Octokit;
+  return { octokit, calls, removed };
+}
+
+async function approved(options: Parameters<typeof labelOctokit>[0], actors: string[] = [OWNER]) {
+  const { octokit, calls } = labelOctokit(options);
+  const warnings: string[] = [];
+  const client = new GitHubClient(octokit, (message) => warnings.push(message));
+  const result = await client.overrideApproved({
+    owner: "o",
+    repo: "r",
+    prNumber: 7,
+    label: OVERRIDE,
+    actors,
+  });
+  return { result, warnings, calls };
+}
+
+describe("GitHubClient.overrideApproved", () => {
+  test("approves a present label applied by an allowed login", async () => {
+    expect((await approved({ events: [labeled(1, OWNER)] })).result).toBe(true);
+  });
+
+  test("refuses the same label applied by another login", async () => {
+    expect((await approved({ events: [labeled(1, "claude-agent[bot]")] })).result).toBe(false);
+  });
+
+  test("matches the allowed login exactly", async () => {
+    expect((await approved({ events: [labeled(1, "VeryGreenBoi")] })).result).toBe(false);
+    expect((await approved({ events: [labeled(1, `${OWNER}-bot`)] })).result).toBe(false);
+  });
+
+  test("refuses a label re-applied by an agent after the owner applied it", async () => {
+    const events = [labeled(1, OWNER), unlabeled(2, "claude-agent[bot]"), labeled(3, "agent")];
+    expect((await approved({ events })).result).toBe(false);
+  });
+
+  test("judges by the latest labeled event, whatever order the API lists them in", async () => {
+    expect((await approved({ events: [labeled(3, "agent"), labeled(1, OWNER)] })).result).toBe(
+      false,
+    );
+    expect((await approved({ events: [labeled(3, OWNER), labeled(1, "agent")] })).result).toBe(
+      true,
+    );
+  });
+
+  test("ignores labeled events for other labels", async () => {
+    const events = [labeled(1, OWNER), labeled(2, "agent", "needs-review")];
+    expect((await approved({ events })).result).toBe(true);
+  });
+
+  test("refuses a label that was removed after the owner applied it", async () => {
+    const events = [labeled(1, OWNER), unlabeled(2, OWNER)];
+    expect((await approved({ events, labels: ["needs-review"] })).result).toBe(false);
+  });
+
+  test("refuses when no labeled event is on record", async () => {
+    expect((await approved({ events: [] })).result).toBe(false);
+  });
+
+  test("refuses and warns when the API fails", async () => {
+    const error = Object.assign(new Error("API rate limit exceeded"), { status: 403 });
+    const { result, warnings } = await approved({ events: [labeled(1, OWNER)], error });
+    expect(result).toBe(false);
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain("API rate limit exceeded");
+  });
+
+  test("lets nobody override when no login is allowed, without calling the API", async () => {
+    const { result, calls } = await approved({ events: [labeled(1, OWNER)] }, []);
+    expect(result).toBe(false);
+    expect(calls).toEqual([]);
+  });
+});
+
+describe("GitHubClient.removeLabel", () => {
+  test("removes the named label from the PR", async () => {
+    const { octokit, removed } = labelOctokit({});
+    await new GitHubClient(octokit).removeLabel("o", "r", 7, OVERRIDE);
+    expect(removed).toMatchObject([{ issue_number: 7, name: OVERRIDE }]);
+  });
+
+  test("treats a label that is not on the PR as removed", async () => {
+    const removeError = Object.assign(new Error("Label does not exist"), { status: 404 });
+    const { octokit } = labelOctokit({ removeError });
+    await expect(new GitHubClient(octokit).removeLabel("o", "r", 7, OVERRIDE)).resolves.toBe(
+      undefined,
+    );
+  });
+
+  test("passes on any other failure", async () => {
+    const removeError = Object.assign(new Error("Resource not accessible"), { status: 403 });
+    const { octokit } = labelOctokit({ removeError });
+    await expect(new GitHubClient(octokit).removeLabel("o", "r", 7, OVERRIDE)).rejects.toThrow(
+      "Resource not accessible",
+    );
+  });
+});

@@ -4,7 +4,7 @@ import { parseGateConfig } from "../src/gate/config";
 import { GATE_COMMENT_MARKER } from "../src/gate/report";
 import { FIXED_TASK, type GateContext, runGate } from "../src/gate/run";
 import { OVERSIZED_REASON, UNREVIEWED_EXCLUDED_REASON } from "../src/gate/verdict";
-import type { GateCheckRunParams } from "../src/github";
+import type { GateCheckRunParams, OverrideQuery } from "../src/github";
 import { JevError, type JevPort } from "../src/jev";
 import { type Evaluation, type MetricAnswers, metricKeys, toEvaluation } from "../src/metrics";
 import { evaluatorFingerprint } from "../src/store/evaluator";
@@ -135,13 +135,35 @@ function fakeRecords(
   return { store, reads, uploads };
 }
 
-function fakeGitHub(options: { config?: string | null; checkErrors?: unknown[] } = {}) {
+type GitHubOptions = {
+  config?: string | null;
+  checkErrors?: unknown[];
+  approved?: boolean | Error;
+  removeError?: unknown;
+  log?: string[];
+};
+
+function fakeGitHub(options: GitHubOptions = {}) {
+  const log = options.log ?? [];
+  const overrideQueries: OverrideQuery[] = [];
+  const removedLabels: { prNumber: number; label: string }[] = [];
   const configReads: { ref: string; path: string }[] = [];
   const checkRuns: GateCheckRunParams[] = [];
   const comments: { pullNumber: number; body: string; marker?: string; author?: string }[] = [];
   const checkErrors = [...(options.checkErrors ?? [])];
   const port = {
+    async overrideApproved(query: OverrideQuery) {
+      overrideQueries.push(query);
+      if (options.approved instanceof Error) throw options.approved;
+      return options.approved ?? false;
+    },
+    async removeLabel(_owner: string, _repo: string, prNumber: number, label: string) {
+      log.push("removeLabel");
+      removedLabels.push({ prNumber, label });
+      if (options.removeError !== undefined) throw options.removeError;
+    },
     async getFileContent(_owner: string, _repo: string, ref: string, path: string) {
+      log.push("getFileContent");
       configReads.push({ ref, path });
       if (options.config === undefined || options.config === null) {
         throw Object.assign(new Error("Not Found"), { status: 404 });
@@ -164,7 +186,7 @@ function fakeGitHub(options: { config?: string | null; checkErrors?: unknown[] }
       comments.push({ pullNumber, body, marker, author });
     },
   };
-  return { port, configReads, checkRuns, comments };
+  return { port, configReads, checkRuns, comments, overrideQueries, removedLabels };
 }
 
 function fakeIo() {
@@ -188,15 +210,23 @@ type Scenario = {
   listError?: unknown;
   uploadError?: unknown;
   checkErrors?: unknown[];
+  approved?: boolean | Error;
+  removeError?: unknown;
   context?: Partial<GateContext>;
   settings?: Record<string, unknown>;
 };
 
 async function run(scenario: Scenario = {}) {
   const git = fakeGit(scenario.files ?? [{ path: "src/app.ts" }], scenario.checkedOut);
-  const github = fakeGitHub({ config: scenario.config, checkErrors: scenario.checkErrors });
+  const log: string[] = [];
+  const github = fakeGitHub({ ...scenario, log });
   const records = fakeRecords(scenario);
   const jev = fakeJev(scenario.replies);
+  const systemOne = jev.port.systemOne.bind(jev.port);
+  jev.port.systemOne = (request, options) => {
+    log.push("jev");
+    return systemOne(request, options);
+  };
   const io = fakeIo();
   await runGate({
     context: {
@@ -207,7 +237,6 @@ async function run(scenario: Scenario = {}) {
       headSha: HEAD,
       beforeSha: BEFORE,
       eventAction: "synchronize",
-      labels: [],
       ...scenario.context,
     },
     settings: { model: MODEL, trustedWorkflow: TRUSTED, ...scenario.settings },
@@ -219,7 +248,7 @@ async function run(scenario: Scenario = {}) {
   });
   const check = github.checkRuns.at(-1);
   if (check === undefined) throw new Error("no check run was posted");
-  return { github, records, jev, io, check };
+  return { github, records, jev, io, check, log };
 }
 
 function healthyEvaluation(): Evaluation {
@@ -561,7 +590,7 @@ describe("runGate: report", () => {
     test(`keeps every default when a setting is ${JSON.stringify(unset) ?? "undefined"}`, async () => {
       const { check, github, io } = await run({
         replies: [new JevError("connection", "down")],
-        context: { labels: ["jev-gate:override"] },
+        approved: true,
         settings: {
           checkName: unset,
           gateConfigPath: unset,
@@ -573,6 +602,8 @@ describe("runGate: report", () => {
       expect(github.configReads).toEqual([{ ref: "main", path: ".github/jev-gate.json" }]);
       expect(io.failures).toEqual([]);
       expect(github.comments[0]?.author).toBe("github-actions[bot]");
+      expect(github.overrideQueries[0]?.label).toBe("jev-gate:override");
+      expect(github.removedLabels[0]?.label).toBe("jev-gate:override");
     });
   }
 
@@ -640,36 +671,108 @@ describe("runGate: exit", () => {
     expect(check.summary).toContain("jev-gate:override");
   });
 
-  test("passes a neutral result with a warning when the override label is set", async () => {
-    const { io } = await run({
+  test("passes a neutral result with a warning when the owner approved the override", async () => {
+    const { io, github } = await run({
       replies: [new JevError("connection", "down")],
-      context: { labels: ["jev-gate:override"] },
+      approved: true,
+      settings: { overrideActors: ["verygreenboi"] },
     });
     expect(io.failures).toEqual([]);
     expect(io.warnings.some((line) => line.includes("jev-gate:override"))).toBe(true);
+    expect(github.overrideQueries).toEqual([
+      { owner: "o", repo: "r", prNumber: 7, label: "jev-gate:override", actors: ["verygreenboi"] },
+    ]);
   });
 
-  test("honours a configured override label and ignores the default one", async () => {
-    const custom = await run({
-      replies: [new JevError("connection", "down")],
-      settings: { overrideLabel: "accept-neutral" },
-      context: { labels: ["accept-neutral"] },
-    });
-    expect(custom.io.failures).toEqual([]);
-    const stale = await run({
-      replies: [new JevError("connection", "down")],
-      settings: { overrideLabel: "accept-neutral" },
-      context: { labels: ["jev-gate:override"] },
-    });
-    expect(stale.io.failures).toHaveLength(1);
+  test("lets nobody override when no override actors are configured", async () => {
+    const { github } = await run({ replies: [new JevError("connection", "down")], approved: true });
+    expect(github.overrideQueries[0]?.actors).toEqual([]);
   });
 
-  test("the override label never rescues a failure", async () => {
+  test("fails a neutral result the override check does not approve", async () => {
+    const { io } = await run({ replies: [new JevError("connection", "down")], approved: false });
+    expect(io.failures).toEqual(["evaluator unavailable: connection"]);
+  });
+
+  test("fails closed and warns when the override check throws", async () => {
     const { io } = await run({
-      replies: [failing()],
-      context: { labels: ["jev-gate:override"] },
+      replies: [new JevError("connection", "down")],
+      approved: new Error("Bad credentials"),
     });
+    expect(io.failures).toEqual(["evaluator unavailable: connection"]);
+    expect(io.warnings.some((line) => line.includes("Bad credentials"))).toBe(true);
+  });
+
+  test("asks about the configured override label", async () => {
+    const { github, io } = await run({
+      replies: [new JevError("connection", "down")],
+      approved: true,
+      settings: { overrideLabel: "accept-neutral" },
+    });
+    expect(github.overrideQueries[0]?.label).toBe("accept-neutral");
+    expect(io.failures).toEqual([]);
+  });
+
+  test("never asks about the override when the gate succeeds", async () => {
+    const { github } = await run({ approved: true });
+    expect(github.overrideQueries).toEqual([]);
+  });
+
+  test("the override never rescues a failure", async () => {
+    const { io } = await run({ replies: [failing()], approved: true });
     expect(io.failures).toHaveLength(1);
+  });
+});
+
+describe("runGate: binding the override to a push", () => {
+  test("removes the override label on a synchronize run before evaluating", async () => {
+    const { github, log, io } = await run({ approved: true });
+    expect(github.removedLabels).toEqual([{ prNumber: 7, label: "jev-gate:override" }]);
+    expect(log.indexOf("removeLabel")).toBe(0);
+    expect(log.indexOf("getFileContent")).toBeGreaterThan(0);
+    expect(log.indexOf("jev")).toBeGreaterThan(0);
+    expect(io.infos.some((line) => line.includes('removed the "jev-gate:override" label'))).toBe(
+      true,
+    );
+  });
+
+  test("removes the configured override label", async () => {
+    const { github } = await run({ settings: { overrideLabel: "accept-neutral" } });
+    expect(github.removedLabels).toEqual([{ prNumber: 7, label: "accept-neutral" }]);
+  });
+
+  for (const eventAction of ["opened", "reopened", "labeled"]) {
+    test(`leaves the label alone on a ${eventAction} run`, async () => {
+      const { github } = await run({ context: { eventAction } });
+      expect(github.removedLabels).toEqual([]);
+    });
+  }
+
+  test("refuses the override on a run whose label removal failed", async () => {
+    const { io, github } = await run({
+      replies: [new JevError("connection", "down")],
+      approved: true,
+      removeError: Object.assign(new Error("Resource not accessible"), { status: 403 }),
+    });
+    expect(io.failures).toEqual(["evaluator unavailable: connection"]);
+    expect(io.warnings.some((line) => line.includes("Resource not accessible"))).toBe(true);
+    expect(github.overrideQueries).toEqual([]);
+  });
+
+  test("reuses the current head's record on a labeled run, with no Jev call", async () => {
+    const { records, jev, check } = await run({
+      previous: previousRecord({ head: HEAD }),
+      context: { eventAction: "labeled", beforeSha: null },
+    });
+    expect(records.reads[0]).toBe(`list ${recordArtifactName(HEAD)}`);
+    expect(jev.requests).toHaveLength(0);
+    expect(check.summary).not.toContain("scored fresh");
+  });
+
+  test("scores normally on a labeled run when the head has no record", async () => {
+    const { records, jev } = await run({ context: { eventAction: "labeled", beforeSha: null } });
+    expect(records.reads[0]).toBe(`list ${recordArtifactName(HEAD)}`);
+    expect(jev.requests).toHaveLength(1);
   });
 });
 

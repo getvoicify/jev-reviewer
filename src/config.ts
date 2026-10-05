@@ -85,3 +85,41 @@ function parseBool(value: string, name: string): boolean {
   if (trimmed === "false") return false;
   throw new Error(`${name} must be "true" or "false", got "${value}"`);
 }
+
+export type Mode = "review" | "gate";
+
+export interface RawGateInputs {
+  apiKey: string;
+  githubToken: string;
+  model: string;
+  gateConfigPath: string;
+  trustedWorkflowPath: string;
+  trustedWorkflowEvent: string;
+  overrideLabel: string;
+  overrideActors: string;
+  checkName: string;
+  commentAuthor: string;
+}
+
+export interface GateModeConfig {
+  apiKey: string;
+  githubToken: string;
+  model: string;
+  gateConfigPath: string;
+  trustedWorkflow: { path: string; event: string };
+  overrideLabel: string;
+  overrideActors: string[];
+  checkName: string;
+  commentAuthor: string;
+}
+
+export function parseMode(_value: string): Mode {
+  return "review";
+}
+
+export function parseGateInputs(
+  _inputs: RawGateInputs,
+  _env: Record<string, string | undefined>,
+): GateModeConfig {
+  throw new Error("not implemented");
+}

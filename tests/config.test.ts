@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { parseConfig } from "../src/config";
+import { parseConfig, parseGateInputs, parseMode } from "../src/config";
 
 function raw(overrides: Record<string, unknown> = {}) {
   return {
@@ -93,5 +93,126 @@ describe("parseConfig", () => {
 
     expect(config.ignoreGlobs).toEqual(["src/gen/**", "docs/**"]);
     expect(parseConfig(raw({ apiKey: "k" }), EMPTY_ENV).ignoreGlobs).toBeUndefined();
+  });
+});
+
+function rawGate(overrides: Record<string, unknown> = {}) {
+  return {
+    apiKey: "key",
+    githubToken: "token",
+    model: "jev-latest",
+    gateConfigPath: ".github/jev-gate.json",
+    trustedWorkflowPath: ".github/workflows/jev-gate.yml",
+    trustedWorkflowEvent: "pull_request_target",
+    overrideLabel: "jev-gate:override",
+    overrideActors: "",
+    checkName: "jev-gate",
+    commentAuthor: "github-actions[bot]",
+    ...overrides,
+  };
+}
+
+describe("parseMode", () => {
+  test("defaults to review when the input is empty", () => {
+    expect(parseMode("")).toBe("review");
+    expect(parseMode("  ")).toBe("review");
+  });
+
+  test("accepts review and gate", () => {
+    expect(parseMode("review")).toBe("review");
+    expect(parseMode(" gate ")).toBe("gate");
+  });
+
+  test("refuses any other mode", () => {
+    expect(() => parseMode("Gate")).toThrow('mode must be one of review, gate, got "Gate"');
+  });
+});
+
+describe("parseGateInputs", () => {
+  test("parses every gate input", () => {
+    const config = parseGateInputs(
+      rawGate({
+        model: "jev-2026-10",
+        gateConfigPath: ".github/gate.json",
+        trustedWorkflowPath: "voicify/.github/.github/workflows/gate.yml",
+        trustedWorkflowEvent: "pull_request",
+        overrideLabel: "accept",
+        overrideActors: "verygreenboi",
+        checkName: "quality",
+        commentAuthor: "jev-app[bot]",
+      }),
+      EMPTY_ENV,
+    );
+
+    expect(config).toEqual({
+      apiKey: "key",
+      githubToken: "token",
+      model: "jev-2026-10",
+      gateConfigPath: ".github/gate.json",
+      trustedWorkflow: {
+        path: "voicify/.github/.github/workflows/gate.yml",
+        event: "pull_request",
+      },
+      overrideLabel: "accept",
+      overrideActors: ["verygreenboi"],
+      checkName: "quality",
+      commentAuthor: "jev-app[bot]",
+    });
+  });
+
+  test("falls back to the defaults for empty optional inputs", () => {
+    const config = parseGateInputs(
+      rawGate({
+        model: "",
+        gateConfigPath: "",
+        trustedWorkflowEvent: "",
+        overrideLabel: "",
+        checkName: "",
+        commentAuthor: "",
+      }),
+      EMPTY_ENV,
+    );
+
+    expect(config).toMatchObject({
+      model: "jev-latest",
+      gateConfigPath: ".github/jev-gate.json",
+      trustedWorkflow: { event: "pull_request_target" },
+      overrideLabel: "jev-gate:override",
+      checkName: "jev-gate",
+      commentAuthor: "github-actions[bot]",
+    });
+  });
+
+  test("reads the api key like review mode", () => {
+    expect(parseGateInputs(rawGate({ apiKey: "" }), { TYPESAFE_API_KEY: "env" }).apiKey).toBe(
+      "env",
+    );
+    expect(() => parseGateInputs(rawGate({ apiKey: "" }), EMPTY_ENV)).toThrow("TYPESAFE_API_KEY");
+  });
+
+  test("refuses to run without a trusted workflow path", () => {
+    expect(() => parseGateInputs(rawGate({ trustedWorkflowPath: " " }), EMPTY_ENV)).toThrow(
+      "trusted-workflow-path is required in gate mode",
+    );
+  });
+
+  test("accepts only the pull request events as the trusted event", () => {
+    expect(() =>
+      parseGateInputs(rawGate({ trustedWorkflowEvent: "workflow_run" }), EMPTY_ENV),
+    ).toThrow("trusted-workflow-event must be one of pull_request_target, pull_request");
+  });
+
+  test("lets nobody override when override-actors is empty", () => {
+    expect(parseGateInputs(rawGate({ overrideActors: "" }), EMPTY_ENV).overrideActors).toEqual([]);
+    expect(
+      parseGateInputs(rawGate({ overrideActors: " \n , \n" }), EMPTY_ENV).overrideActors,
+    ).toEqual([]);
+  });
+
+  test("splits override-actors on newlines and commas", () => {
+    expect(
+      parseGateInputs(rawGate({ overrideActors: "verygreenboi, alice\nbob\n\n" }), EMPTY_ENV)
+        .overrideActors,
+    ).toEqual(["verygreenboi", "alice", "bob"]);
   });
 });

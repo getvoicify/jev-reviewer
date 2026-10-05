@@ -58,12 +58,33 @@ export function selectUpsertTarget(
   return null;
 }
 
+export interface OverrideQuery {
+  owner: string;
+  repo: string;
+  prNumber: number;
+  label: string;
+  actors: string[];
+}
+
 export class GitHubClient implements GitHubPort {
   readonly #octokit: Octokit;
+  readonly #warn: (message: string) => void;
 
-  constructor(octokit: Octokit) {
+  constructor(octokit: Octokit, warn: (message: string) => void = () => {}) {
     this.#octokit = octokit;
+    this.#warn = warn;
   }
+
+  async overrideApproved(_query: OverrideQuery): Promise<boolean> {
+    return true;
+  }
+
+  async removeLabel(
+    _owner: string,
+    _repo: string,
+    _prNumber: number,
+    _label: string,
+  ): Promise<void> {}
 
   async getPullDiff(owner: string, repo: string, pullNumber: number): Promise<string> {
     const { data } = await this.#octokit.rest.pulls.get({
