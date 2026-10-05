@@ -7,10 +7,12 @@ import {
   evaluateMetrics,
   type MetricAnswers,
   MetricEvaluationError,
+  type MetricKey,
   metricKeys,
   toEvaluation,
 } from "../src/metrics";
 import mcpQuestions from "./fixtures/jev-review-questions.json";
+import mcpAnswerVerdicts from "./fixtures/mcp-answer-verdicts.json";
 import answersCurrent from "./fixtures/metric-answers-current.json";
 import answersPrevious from "./fixtures/metric-answers-previous.json";
 import mcpEvaluationCurrent from "./fixtures/metric-evaluation-current.json";
@@ -207,6 +209,63 @@ describe("toEvaluation", () => {
   });
 });
 
+describe("answer validation", () => {
+  type VerdictCase = {
+    name: string;
+    answer?: string;
+    set?: Record<string, unknown>;
+    unset?: string;
+    unsetTop?: string;
+    mcpAccepts: boolean;
+  };
+
+  function malformed(shape: VerdictCase): MetricAnswers {
+    const response = structuredClone(answersCurrent) as unknown as Record<string, unknown> & {
+      answers: Record<string, Record<string, unknown>>;
+    };
+    if (shape.answer) {
+      const answer = response.answers[shape.answer] as Record<string, unknown>;
+      if (shape.unset) delete answer[shape.unset];
+      if (shape.set) Object.assign(answer, shape.set);
+    } else {
+      if (shape.unsetTop) delete response[shape.unsetTop];
+      if (shape.set) Object.assign(response, shape.set);
+    }
+    return response as unknown as MetricAnswers;
+  }
+
+  const verdicts = mcpAnswerVerdicts as VerdictCase[];
+
+  test.each(verdicts.filter((shape) => !shape.mcpAccepts).map((shape) => [shape.name, shape]))(
+    "fails closed on %s, as the MCP's schema does",
+    (_name, shape) => {
+      expect(() => toEvaluation(malformed(shape as VerdictCase))).toThrow(
+        new MetricEvaluationError(
+          "Jev returned a response that did not match its documented schema.",
+        ),
+      );
+    },
+  );
+
+  test.each(verdicts.filter((shape) => shape.mcpAccepts).map((shape) => [shape.name, shape]))(
+    "accepts %s, as the MCP's schema does",
+    (_name, shape) => {
+      expect(() => toEvaluation(malformed(shape as VerdictCase))).not.toThrow();
+    },
+  );
+
+  test("covers the measured malformed shapes", () => {
+    expect(verdicts.filter((shape) => !shape.mcpAccepts).map((shape) => shape.name)).toEqual(
+      expect.arrayContaining([
+        "a score answer with no confidence",
+        "a noul answer with no noul value",
+        "a score of 42",
+        'a score given as the string "7"',
+      ]),
+    );
+  });
+});
+
 describe("compareEvaluations", () => {
   test("produces the MCP's comparison between two evaluations", () => {
     const previous = toEvaluation(answersPrevious as unknown as MetricAnswers);
@@ -218,32 +277,36 @@ describe("compareEvaluations", () => {
     });
   });
 
-  test("calls a move of 0.8 meaningful and 0.7 unchanged, in both directions", () => {
-    const previous = toEvaluation(
-      answers({
-        readability: { score: 5 },
-        coupling: { score: 5 },
-        security: { score: 5 },
-        duplication: { score: 5 },
-      }),
-    );
+  test("calls a rounded move of 0.75 or more meaningful, rounding as the MCP does", () => {
+    const previousScores: Partial<Record<string, number>> = {
+      readability: 6.26,
+      coupling: 6.25,
+      documentation: 6.24,
+      security: 7.74,
+      duplication: 7.75,
+      consistency: 7.76,
+    };
     const current = toEvaluation(
-      answers({
-        readability: { score: 5.8 },
-        coupling: { score: 5.7 },
-        security: { score: 4.2 },
-        duplication: { score: 4.3 },
-      }),
+      answers(Object.fromEntries(Object.keys(previousScores).map((key) => [key, { score: 6 }]))),
     );
+    const previous = toEvaluation(answers());
+    for (const [key, score] of Object.entries(previousScores)) {
+      previous.metrics[key as MetricKey] = { applicable: true, score, confidence: 0.9 };
+    }
     const { comparison, improvements, regressions } = compareEvaluations(current, previous);
     const direction = (metric: string) =>
       comparison.find((entry) => entry.metric === metric)?.direction;
-    expect(direction("readability")).toBe("improved");
-    expect(direction("coupling")).toBe("unchanged");
-    expect(direction("security")).toBe("regressed");
+    expect(direction("readability")).toBe("unchanged");
+    expect(direction("coupling")).toBe("improved");
+    expect(direction("documentation")).toBe("improved");
+    expect(direction("security")).toBe("unchanged");
     expect(direction("duplication")).toBe("unchanged");
-    expect(improvements).toEqual(["Readability and intent: 6 → 6.8"]);
-    expect(regressions).toEqual(["Security: 6 → 5.2"]);
+    expect(direction("consistency")).toBe("regressed");
+    expect(improvements).toEqual([
+      "Coupling and dependency quality: 6.25 → 7",
+      "Documentation and explainability: 6.24 → 7",
+    ]);
+    expect(regressions).toEqual(["Consistency and conventions: 7.76 → 7"]);
   });
 
   test("reports each delta to one decimal", () => {
@@ -294,10 +357,24 @@ describe("evaluateMetrics", () => {
     ]);
   });
 
-  test("leaves absent state fields and an absent model out of the request", async () => {
+  test("leaves absent state fields out and asks jev-latest when no model is given", async () => {
     const { port, requests } = recordingPort(answersCurrent);
     await evaluateMetrics(port, { diff: "+a" });
-    expect(requests).toEqual([{ state: { diff: "+a" }, questions: buildMetricQuestions() }]);
+    expect(requests).toEqual([
+      { state: { diff: "+a" }, questions: buildMetricQuestions(), model: "jev-latest" },
+    ]);
+  });
+
+  test("refuses a previous evaluation missing a metric, without calling Jev", async () => {
+    const { port, requests } = recordingPort(answersCurrent);
+    const previousEvaluation = toEvaluation(answersPrevious as unknown as MetricAnswers);
+    delete (previousEvaluation.metrics as Partial<Evaluation["metrics"]>).security;
+    await expect(evaluateMetrics(port, { diff: "+a" }, { previousEvaluation })).rejects.toThrow(
+      new MetricEvaluationError(
+        "previousEvaluation is not a jev_review evaluation: metrics.security is missing.",
+      ),
+    );
+    expect(requests).toHaveLength(0);
   });
 
   test("returns the evaluation with the comparison against a previous one", async () => {
