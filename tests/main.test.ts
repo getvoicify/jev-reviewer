@@ -116,6 +116,8 @@ describe("main: mode dispatch", () => {
       headSha: HEAD,
       beforeSha: BEFORE,
       eventAction: "synchronize",
+      triggerLabel: null,
+      sender: null,
     });
   });
 

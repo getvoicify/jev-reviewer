@@ -27,8 +27,39 @@ describe("gateContextFromEvent", () => {
       headSha: HEAD,
       beforeSha: BEFORE,
       eventAction: "synchronize",
+      triggerLabel: null,
+      sender: null,
     });
   });
+
+  test("reads the applied label and the sender of a labeled event", () => {
+    const context = gateContextFromEvent(
+      event({
+        action: "labeled",
+        label: { name: "jev-gate:override" },
+        sender: { login: "verygreenboi" },
+      }),
+      "pull_request_target",
+    );
+    expect(context.triggerLabel).toBe("jev-gate:override");
+    expect(context.sender).toBe("verygreenboi");
+  });
+
+  for (const [label, overrides] of [
+    ["no label or sender", { label: undefined, sender: undefined }],
+    ["null label and sender", { label: null, sender: null }],
+    ["a label and sender without names", { label: {}, sender: {} }],
+    ["non-string names", { label: { name: 7 }, sender: { login: ["verygreenboi"] } }],
+  ] as const) {
+    test(`reads ${label} as null`, () => {
+      const context = gateContextFromEvent(
+        event({ action: "labeled", ...overrides }),
+        "pull_request_target",
+      );
+      expect(context.triggerLabel).toBeNull();
+      expect(context.sender).toBeNull();
+    });
+  }
 
   for (const action of ["opened", "reopened", "labeled"]) {
     test(`ignores a before SHA on ${action}`, () => {

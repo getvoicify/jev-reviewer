@@ -240,6 +240,8 @@ async function run(scenario: Scenario = {}) {
       headSha: HEAD,
       beforeSha: BEFORE,
       eventAction: "synchronize",
+      triggerLabel: null,
+      sender: null,
       ...scenario.context,
     },
     settings: { model: MODEL, trustedWorkflow: TRUSTED, ...scenario.settings },
@@ -253,6 +255,15 @@ async function run(scenario: Scenario = {}) {
   if (check === undefined) throw new Error("no check run was posted");
   return { github, records, jev, io, check, log };
 }
+
+const OWNER = "verygreenboi";
+const OWNER_ACTORS = { overrideActors: [OWNER] };
+
+function labeledBy(sender: string, triggerLabel = "jev-gate:override"): Partial<GateContext> {
+  return { eventAction: "labeled", beforeSha: null, triggerLabel, sender };
+}
+
+const UNAVAILABLE = () => [new JevError("connection", "down")];
 
 function healthyEvaluation(): Evaluation {
   return toEvaluation(answers());
@@ -594,7 +605,9 @@ describe("runGate: report", () => {
       const { check, github, io } = await run({
         replies: [new JevError("connection", "down")],
         approved: true,
+        context: labeledBy(OWNER),
         settings: {
+          ...OWNER_ACTORS,
           checkName: unset,
           gateConfigPath: unset,
           overrideLabel: unset,
@@ -606,7 +619,6 @@ describe("runGate: report", () => {
       expect(io.failures).toEqual([]);
       expect(github.comments[0]?.author).toBe("github-actions[bot]");
       expect(github.overrideQueries[0]?.label).toBe("jev-gate:override");
-      expect(github.removedLabels[0]?.label).toBe("jev-gate:override");
     });
   }
 
@@ -674,46 +686,123 @@ describe("runGate: exit", () => {
     expect(check.summary).toContain("jev-gate:override");
   });
 
-  test("passes a neutral result with a warning when the owner approved the override", async () => {
+  test("passes a neutral result with a warning when the owner applies the override label", async () => {
     const { io, github } = await run({
-      replies: [new JevError("connection", "down")],
+      replies: UNAVAILABLE(),
       approved: true,
-      settings: { overrideActors: ["verygreenboi"] },
+      context: labeledBy(OWNER),
+      settings: OWNER_ACTORS,
     });
     expect(io.failures).toEqual([]);
     expect(io.warnings.some((line) => line.includes("jev-gate:override"))).toBe(true);
     expect(github.overrideQueries).toEqual([
-      { owner: "o", repo: "r", prNumber: 7, label: "jev-gate:override", actors: ["verygreenboi"] },
+      { owner: "o", repo: "r", prNumber: 7, label: "jev-gate:override", actors: [OWNER] },
     ]);
   });
 
-  test("lets nobody override when no override actors are configured", async () => {
-    const { github } = await run({ replies: [new JevError("connection", "down")], approved: true });
-    expect(github.overrideQueries[0]?.actors).toEqual([]);
+  test("fails when an agent adds an unrelated label while the owner's override is present", async () => {
+    const { io, github } = await run({
+      replies: UNAVAILABLE(),
+      approved: true,
+      context: labeledBy("claude-agent[bot]", "needs-review"),
+      settings: OWNER_ACTORS,
+    });
+    expect(io.failures).toEqual(["evaluator unavailable: connection"]);
+    expect(github.overrideQueries).toEqual([]);
   });
 
-  test("fails a neutral result the override check does not approve", async () => {
-    const { io } = await run({ replies: [new JevError("connection", "down")], approved: false });
+  test("fails when the owner adds an unrelated label while the override is present", async () => {
+    const { io } = await run({
+      replies: UNAVAILABLE(),
+      approved: true,
+      context: labeledBy(OWNER, "needs-review"),
+      settings: OWNER_ACTORS,
+    });
     expect(io.failures).toEqual(["evaluator unavailable: connection"]);
+  });
+
+  test("fails when someone else applies the override label", async () => {
+    const { io, github } = await run({
+      replies: UNAVAILABLE(),
+      approved: true,
+      context: labeledBy("claude-agent[bot]"),
+      settings: OWNER_ACTORS,
+    });
+    expect(io.failures).toEqual(["evaluator unavailable: connection"]);
+    expect(github.overrideQueries).toEqual([]);
+  });
+
+  test("fails a labeled run with no sender", async () => {
+    const { io } = await run({
+      replies: UNAVAILABLE(),
+      approved: true,
+      context: { ...labeledBy(OWNER), sender: null },
+      settings: OWNER_ACTORS,
+    });
+    expect(io.failures).toEqual(["evaluator unavailable: connection"]);
+  });
+
+  for (const eventAction of ["synchronize", "opened", "reopened"]) {
+    test(`fails a neutral ${eventAction} run even with the override label present`, async () => {
+      const { io, github } = await run({
+        replies: UNAVAILABLE(),
+        approved: true,
+        context: { eventAction, triggerLabel: "jev-gate:override", sender: OWNER },
+        settings: OWNER_ACTORS,
+      });
+      expect(io.failures).toEqual(["evaluator unavailable: connection"]);
+      expect(github.overrideQueries).toEqual([]);
+    });
+  }
+
+  test("lets nobody override when no override actors are configured", async () => {
+    const { io, github } = await run({
+      replies: UNAVAILABLE(),
+      approved: true,
+      context: labeledBy(OWNER),
+    });
+    expect(io.failures).toEqual(["evaluator unavailable: connection"]);
+    expect(github.overrideQueries).toEqual([]);
+  });
+
+  test("fails when the owner applies the label but the live check does not approve", async () => {
+    const { io, github } = await run({
+      replies: UNAVAILABLE(),
+      approved: false,
+      context: labeledBy(OWNER),
+      settings: OWNER_ACTORS,
+    });
+    expect(io.failures).toEqual(["evaluator unavailable: connection"]);
+    expect(github.overrideQueries).toHaveLength(1);
   });
 
   test("fails closed and warns when the override check throws", async () => {
     const { io } = await run({
-      replies: [new JevError("connection", "down")],
+      replies: UNAVAILABLE(),
       approved: new Error("Bad credentials"),
+      context: labeledBy(OWNER),
+      settings: OWNER_ACTORS,
     });
     expect(io.failures).toEqual(["evaluator unavailable: connection"]);
     expect(io.warnings.some((line) => line.includes("Bad credentials"))).toBe(true);
   });
 
-  test("asks about the configured override label", async () => {
-    const { github, io } = await run({
-      replies: [new JevError("connection", "down")],
+  test("honours only the configured override label", async () => {
+    const custom = await run({
+      replies: UNAVAILABLE(),
       approved: true,
-      settings: { overrideLabel: "accept-neutral" },
+      context: labeledBy(OWNER, "accept-neutral"),
+      settings: { ...OWNER_ACTORS, overrideLabel: "accept-neutral" },
     });
-    expect(github.overrideQueries[0]?.label).toBe("accept-neutral");
-    expect(io.failures).toEqual([]);
+    expect(custom.github.overrideQueries[0]?.label).toBe("accept-neutral");
+    expect(custom.io.failures).toEqual([]);
+    const stale = await run({
+      replies: UNAVAILABLE(),
+      approved: true,
+      context: labeledBy(OWNER),
+      settings: { ...OWNER_ACTORS, overrideLabel: "accept-neutral" },
+    });
+    expect(stale.io.failures).toHaveLength(1);
   });
 
   test("never asks about the override when the gate succeeds", async () => {
@@ -722,7 +811,12 @@ describe("runGate: exit", () => {
   });
 
   test("the override never rescues a failure", async () => {
-    const { io } = await run({ replies: [failing()], approved: true });
+    const { io } = await run({
+      replies: [failing()],
+      approved: true,
+      context: labeledBy(OWNER),
+      settings: OWNER_ACTORS,
+    });
     expect(io.failures).toHaveLength(1);
   });
 });
@@ -737,6 +831,11 @@ describe("runGate: binding the override to a push", () => {
     expect(io.infos.some((line) => line.includes('removed the "jev-gate:override" label'))).toBe(
       true,
     );
+  });
+
+  test("removes the default override label when the setting is empty", async () => {
+    const { github } = await run({ settings: { overrideLabel: "" } });
+    expect(github.removedLabels).toEqual([{ prNumber: 7, label: "jev-gate:override" }]);
   });
 
   test("removes the configured override label", async () => {
