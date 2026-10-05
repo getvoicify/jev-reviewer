@@ -20,6 +20,12 @@ jobs:
           node-version: 24
       - name: Verify the bundle boots on Node 24
         run: |
-          set -o pipefail
-          node dist/index.js 2>&1 | grep -q "TYPESAFE_API_KEY" \
-            && echo "bundle boots and fails gracefully without a key"
+          status=0
+          output=$(env -u TYPESAFE_API_KEY node dist/index.js 2>&1) || status=$?
+          token=$(openssl rand -hex 16)
+          echo "::stop-commands::$token"
+          echo "$output"
+          echo "::$token::"
+          test "$status" -eq 1
+          grep -qF "::error::No TypeSafe API key" <<<"$output"
+          echo "bundle boots and fails gracefully without a key"
