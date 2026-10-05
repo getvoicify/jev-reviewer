@@ -7,6 +7,7 @@ import { type Annotation, COMMENT_MARKER } from "../src/report";
 interface ListedComment {
   id: number;
   body?: string;
+  user?: { login: string } | null;
 }
 
 interface FakeIssues {
@@ -140,6 +141,42 @@ describe("GitHubClient.upsertComment with a marker", () => {
     await new GitHubClient(octokit).upsertComment("o", "r", 7, "gate", GATE_COMMENT_MARKER);
     expect(issues.created).toEqual([{ issueNumber: 7, body: "gate" }]);
     expect(issues.updated).toHaveLength(0);
+  });
+});
+
+describe("GitHubClient.upsertComment with an expected author", () => {
+  const bot = "github-actions[bot]";
+
+  test("ignores a marker planted in another user's comment and creates a new one", async () => {
+    const { octokit, issues } = fakeOctokit([
+      { id: 3, body: `planted ${GATE_COMMENT_MARKER}`, user: { login: "mallory" } },
+    ]);
+    await new GitHubClient(octokit).upsertComment("o", "r", 7, "gate", GATE_COMMENT_MARKER, bot);
+    expect(issues.updated).toHaveLength(0);
+    expect(issues.created).toEqual([{ issueNumber: 7, body: "gate" }]);
+  });
+
+  test("updates the bot's own marked comment past a planted one", async () => {
+    const { octokit, issues } = fakeOctokit([
+      { id: 3, body: `planted ${GATE_COMMENT_MARKER}`, user: { login: "mallory" } },
+      { id: 4, body: `gate ${GATE_COMMENT_MARKER}`, user: { login: bot } },
+    ]);
+    await new GitHubClient(octokit).upsertComment("o", "r", 7, "next", GATE_COMMENT_MARKER, bot);
+    expect(issues.updated).toEqual([{ commentId: 4, body: "next" }]);
+    expect(issues.created).toHaveLength(0);
+  });
+
+  test("ignores a marked comment with no recorded author", async () => {
+    const { octokit, issues } = fakeOctokit([
+      { id: 5, body: `ghost ${GATE_COMMENT_MARKER}`, user: null },
+    ]);
+    await new GitHubClient(octokit).upsertComment("o", "r", 7, "gate", GATE_COMMENT_MARKER, bot);
+    expect(issues.created).toHaveLength(1);
+  });
+
+  test("keeps the review mode's any-author match when no author is given", () => {
+    const comments = [{ id: 6, body: COMMENT_MARKER, user: { login: "someone" } }];
+    expect(selectUpsertTarget(comments, COMMENT_MARKER)).toBe(6);
   });
 });
 

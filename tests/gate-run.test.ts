@@ -3,7 +3,7 @@ import type { GitPort } from "../src/diff/git";
 import { parseGateConfig } from "../src/gate/config";
 import { GATE_COMMENT_MARKER } from "../src/gate/report";
 import { FIXED_TASK, type GateContext, runGate } from "../src/gate/run";
-import { OVERSIZED_REASON } from "../src/gate/verdict";
+import { OVERSIZED_REASON, UNREVIEWED_EXCLUDED_REASON } from "../src/gate/verdict";
 import type { GateCheckRunParams } from "../src/github";
 import { JevError, type JevPort } from "../src/jev";
 import { type Evaluation, type MetricAnswers, metricKeys, toEvaluation } from "../src/metrics";
@@ -138,7 +138,7 @@ function fakeRecords(
 function fakeGitHub(options: { config?: string | null; checkErrors?: unknown[] } = {}) {
   const configReads: { ref: string; path: string }[] = [];
   const checkRuns: GateCheckRunParams[] = [];
-  const comments: { pullNumber: number; body: string; marker?: string }[] = [];
+  const comments: { pullNumber: number; body: string; marker?: string; author?: string }[] = [];
   const checkErrors = [...(options.checkErrors ?? [])];
   const port = {
     async getFileContent(_owner: string, _repo: string, ref: string, path: string) {
@@ -159,8 +159,9 @@ function fakeGitHub(options: { config?: string | null; checkErrors?: unknown[] }
       pullNumber: number,
       body: string,
       marker?: string,
+      author?: string,
     ) {
-      comments.push({ pullNumber, body, marker });
+      comments.push({ pullNumber, body, marker, author });
     },
   };
   return { port, configReads, checkRuns, comments };
@@ -302,6 +303,29 @@ describe("runGate: diff and flags", () => {
     expect(records.uploads).toEqual([]);
   });
 
+  test("goes neutral when an excluded jar changes beside a code file", async () => {
+    const { check, io, jev } = await run({
+      files: [{ path: "src/app.ts" }, { path: "gradle/wrapper/gradle-wrapper.jar" }],
+    });
+    expect(jev.requests).toHaveLength(1);
+    expect(jev.requests[0]?.state.diff).not.toContain("gradle-wrapper.jar");
+    expect(check.conclusion).toBe("neutral");
+    expect(io.failures).toEqual([`${UNREVIEWED_EXCLUDED_REASON}: 1`]);
+    expect(check.summary).not.toContain("gradle-wrapper.jar");
+  });
+
+  test("goes neutral when a lockfile changes beside a code file", async () => {
+    const { check } = await run({ files: [{ path: "src/app.ts" }, { path: "bun.lock" }] });
+    expect(check.conclusion).toBe("neutral");
+    expect(check.summary).toContain(`${UNREVIEWED_EXCLUDED_REASON}: 1`);
+  });
+
+  test("succeeds when only an inert excluded file changes beside a code file", async () => {
+    const { check, io } = await run({ files: [{ path: "src/app.ts" }, { path: "docs/logo.png" }] });
+    expect(check.conclusion).toBe("success");
+    expect(io.failures).toEqual([]);
+  });
+
   test("skips an oversized partition and turns the verdict neutral", async () => {
     const { check, jev } = await run({
       config: SMALL_BUDGET,
@@ -389,6 +413,17 @@ describe("runGate: reuse", () => {
     expect(jev.requests).toHaveLength(0);
     expect(check.conclusion).toBe("neutral");
     expect(check.summary).toContain(OVERSIZED_REASON);
+  });
+
+  test("goes neutral on reuse when an excluded jar newly changed, without calling Jev", async () => {
+    const { jev, check } = await run({
+      files: [{ path: "src/app.ts" }, { path: "gradle/wrapper/gradle-wrapper.jar" }],
+      previous: previousRecord(),
+    });
+    expect(jev.requests).toHaveLength(0);
+    expect(check.summary).toContain("reused from the previous push");
+    expect(check.conclusion).toBe("neutral");
+    expect(check.summary).toContain(`${UNREVIEWED_EXCLUDED_REASON}: 1`);
   });
 
   test("decides a reused failing evaluation as failure", async () => {
@@ -487,6 +522,16 @@ describe("runGate: saving", () => {
     expect(io.failures).toEqual([]);
   });
 
+  test("recognises an already-saved record by its message when no status is given", async () => {
+    const { io, check } = await run({
+      uploadError: new Error("An artifact with this name already exists on the workflow run"),
+    });
+    expect(io.warnings).toEqual([
+      "The gate record for this head already exists from an earlier attempt",
+    ]);
+    expect(check.conclusion).toBe("success");
+  });
+
   test("warns and still concludes when the record cannot be saved", async () => {
     const { io, check } = await run({ uploadError: new Error("upload broke") });
     expect(io.warnings.some((line) => line.includes("upload broke"))).toBe(true);
@@ -512,9 +557,38 @@ describe("runGate: report", () => {
     expect(check.headSha).toBe(HEAD);
   });
 
+  for (const unset of [undefined, ""]) {
+    test(`keeps every default when a setting is ${JSON.stringify(unset) ?? "undefined"}`, async () => {
+      const { check, github, io } = await run({
+        replies: [new JevError("connection", "down")],
+        context: { labels: ["jev-gate:override"] },
+        settings: {
+          checkName: unset,
+          gateConfigPath: unset,
+          overrideLabel: unset,
+          commentAuthor: unset,
+        },
+      });
+      expect(check.name).toBe("jev-gate");
+      expect(github.configReads).toEqual([{ ref: "main", path: ".github/jev-gate.json" }]);
+      expect(io.failures).toEqual([]);
+      expect(github.comments[0]?.author).toBe("github-actions[bot]");
+    });
+  }
+
   test("names the check run as configured", async () => {
     const { check } = await run({ settings: { checkName: "quality" } });
     expect(check.name).toBe("quality");
+  });
+
+  test("only edits a gate comment written by the Actions bot by default", async () => {
+    const { github } = await run();
+    expect(github.comments[0]?.author).toBe("github-actions[bot]");
+  });
+
+  test("only edits a gate comment written by the configured author", async () => {
+    const { github } = await run({ settings: { commentAuthor: "jev-app[bot]" } });
+    expect(github.comments[0]?.author).toBe("jev-app[bot]");
   });
 
   test("upserts the PR comment under the gate marker", async () => {

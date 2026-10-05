@@ -243,6 +243,24 @@ describe("gateFlags for excluded files", () => {
   }
 });
 
+describe("gateFlags unreviewedExcluded", () => {
+  const excluded = (path: string): ExcludedFile => ({ path, pattern: "**/*" });
+  const count = (paths: string[], kept: DiffFile[] = [file("src/app.ts")]) =>
+    gateFlags({ files: kept, excluded: paths.map(excluded) }, [part(kept)]).unreviewedExcluded;
+
+  test("counts every excluded file that is not inert", () => {
+    expect(count(["gradle/wrapper/gradle-wrapper.jar", "bun.lock", "logo.png"])).toBe(2);
+  });
+
+  test("is zero when every excluded file is inert", () => {
+    expect(count(["docs/logo.png", "fonts/a.woff2", "CHANGELOG.md"])).toBe(0);
+  });
+
+  test("ignores kept files, however code-like", () => {
+    expect(count([], [file("src/app.ts"), file("build.gradle")])).toBe(0);
+  });
+});
+
 describe("gateFlags oversized", () => {
   const a = file("src/a.ts");
   const b = file("src/b.ts");
@@ -322,10 +340,11 @@ describe("gateFlags recomputed on reuse", () => {
     const flags = gateFlags({ files, excluded: [] }, partitions);
     const parts = partitions.map(() => ({ evaluation: healthy, changedLines: 1 }));
 
-    expect(flags).toEqual({ oversized: true, codeChanged: true });
+    expect(flags).toEqual({ oversized: true, codeChanged: true, unreviewedExcluded: 0 });
     expect(decideVerdict(parts, budget, flags).conclusion).toBe("neutral");
-    expect(decideVerdict(parts, budget, { oversized: false, codeChanged: false }).conclusion).toBe(
-      "success",
-    );
+    expect(
+      decideVerdict(parts, budget, { oversized: false, codeChanged: false, unreviewedExcluded: 0 })
+        .conclusion,
+    ).toBe("success");
   });
 });

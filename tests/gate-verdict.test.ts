@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { aggregateEvaluations } from "../src/gate/aggregate";
 import { DEFAULT_GATE_CONFIG, type GateConfig } from "../src/gate/config";
-import { decideVerdict as decideFromParts } from "../src/gate/verdict";
+import { decideVerdict as decideFromParts, UNREVIEWED_EXCLUDED_REASON } from "../src/gate/verdict";
 import { type Evaluation, type MetricEvaluation, type MetricKey, metricKeys } from "../src/metrics";
 
 function evaluation(metrics: Partial<Record<MetricKey, MetricEvaluation>>): Evaluation {
@@ -11,11 +11,12 @@ function evaluation(metrics: Partial<Record<MetricKey, MetricEvaluation>>): Eval
   return { metrics: all, priorities: [] };
 }
 
-type Flags = { oversized: boolean; codeChanged?: boolean };
+type Flags = { oversized: boolean; codeChanged?: boolean; unreviewedExcluded?: number };
 
 const decideVerdict = (single: Evaluation, gateConfig: GateConfig, flags: Flags) =>
   decideFromParts([{ evaluation: single, changedLines: 10 }], gateConfig, {
     codeChanged: true,
+    unreviewedExcluded: 0,
     ...flags,
   });
 
@@ -209,6 +210,29 @@ describe("decideVerdict", () => {
       ]);
     });
 
+    test("is neutral when an excluded file that can run or configure the build changed", () => {
+      const verdict = decideVerdict(evaluation(healthy), config, {
+        oversized: false,
+        unreviewedExcluded: 2,
+      });
+      expect(verdict.conclusion).toBe("neutral");
+      expect(verdict.reasons).toEqual([`${UNREVIEWED_EXCLUDED_REASON}: 2`]);
+    });
+
+    test("names no path in the unreviewed-excluded reason", () => {
+      expect(UNREVIEWED_EXCLUDED_REASON).toBe(
+        "Excluded files that can run or configure the build changed and were not reviewed",
+      );
+    });
+
+    test("lets a confident failure outrank unreviewed excluded files", () => {
+      const verdict = decideVerdict(evaluation({ ...healthy, correctness: scored(3) }), config, {
+        oversized: false,
+        unreviewedExcluded: 1,
+      });
+      expect(verdict.conclusion).toBe("failure");
+    });
+
     test("lets a confident failure outrank an inconclusive metric", () => {
       const verdict = decideVerdict(
         evaluation({ ...healthy, correctness: scored(3), security: scored(8, 0.1) }),
@@ -237,13 +261,14 @@ describe("decideVerdict", () => {
         readability: scored(4),
       }),
       config,
-      { oversized: true },
+      { oversized: true, unreviewedExcluded: 3 },
     );
     expect(verdict.reasons).toEqual([
       "reliability scored 4, below the minimum of 7",
       "security scored 3, below the minimum of 7",
       "correctness confidence 0.1 is below the minimum of 0.5",
       "A file was too large to score whole, so part of the change was not reviewed",
+      `${UNREVIEWED_EXCLUDED_REASON}: 3`,
       "cognitiveComplexity scored 5, below the advisory floor of 6",
       "readability scored 4, below the advisory floor of 6",
     ]);
@@ -287,7 +312,7 @@ describe("decideVerdict across partitions", () => {
     decideFromParts(
       evaluations.map((each) => ({ evaluation: each, changedLines: 10 })),
       config,
-      { oversized: false, codeChanged: true },
+      { oversized: false, codeChanged: true, unreviewedExcluded: 0 },
     );
 
   test("fails when one partition fails confidently even if another partition scores lower with low confidence", () => {
@@ -342,15 +367,15 @@ describe("decideVerdict across partitions", () => {
         { evaluation: readability(4), changedLines: 90 },
       ],
       config,
-      { oversized: false, codeChanged: true },
+      { oversized: false, codeChanged: true, unreviewedExcluded: 0 },
     );
     expect(statusOf(verdict, "readability")).toMatchObject({ score: 4.5, status: "warn" });
   });
 
   test("refuses zero partitions", () => {
-    expect(() => decideFromParts([], config, { oversized: false, codeChanged: true })).toThrow(
-      /at least one/,
-    );
+    expect(() =>
+      decideFromParts([], config, { oversized: false, codeChanged: true, unreviewedExcluded: 0 }),
+    ).toThrow(/at least one/);
   });
 
   test.each([-1, 1.5, Number.NaN, Number.POSITIVE_INFINITY])(
@@ -360,6 +385,7 @@ describe("decideVerdict across partitions", () => {
         decideFromParts([{ evaluation: evaluation(healthy), changedLines }], config, {
           oversized: false,
           codeChanged: true,
+          unreviewedExcluded: 0,
         }),
       ).toThrow(/changedLines/);
     },
@@ -370,13 +396,21 @@ describe("decideVerdict when no gated metric applies", () => {
   const advisoryOnly = evaluation({ readability: scored(8) });
 
   test("goes neutral on a code change where every gated metric is not applicable", () => {
-    const verdict = decideVerdict(advisoryOnly, config, { oversized: false, codeChanged: true });
+    const verdict = decideVerdict(advisoryOnly, config, {
+      oversized: false,
+      codeChanged: true,
+      unreviewedExcluded: 0,
+    });
     expect(verdict.conclusion).toBe("neutral");
     expect(verdict.reasons).toEqual(["No gated metric was applicable to a code change"]);
   });
 
   test("succeeds when nothing gated applies and no code changed", () => {
-    const verdict = decideVerdict(advisoryOnly, config, { oversized: false, codeChanged: false });
+    const verdict = decideVerdict(advisoryOnly, config, {
+      oversized: false,
+      codeChanged: false,
+      unreviewedExcluded: 0,
+    });
     expect(verdict.conclusion).toBe("success");
     expect(verdict.reasons).toEqual([]);
   });
@@ -409,7 +443,7 @@ describe("a stored aggregate re-decided as one partition", () => {
     const { security: _omitted, ...rest } = healthy;
     return evaluation(rest);
   };
-  const flags = { oversized: false, codeChanged: true };
+  const flags = { oversized: false, codeChanged: true, unreviewedExcluded: 0 };
 
   test.each([
     ["fail beside pass", [security(3, 0.9), security(9, 0.9)]],
