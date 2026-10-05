@@ -197,7 +197,7 @@ describe("aggregateEvaluations", () => {
     });
 
     test("stay inside the schema's bounds when every partition scores the maximum", () => {
-      const parts = [3, 7, 11, 13].map((changedLines) => ({
+      const parts = [394, 181, 109].map((changedLines) => ({
         evaluation: evaluation({ documentation: scored(10, 1) }),
         changedLines,
       }));

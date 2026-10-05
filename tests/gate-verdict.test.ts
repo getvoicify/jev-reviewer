@@ -241,6 +241,18 @@ describe("decideVerdict", () => {
     ]);
   });
 
+  test("shows a two-decimal score exactly as scored rather than a float artefact below it", () => {
+    const verdict = decideVerdict(
+      evaluation({ ...healthy, security: scored(4.35), readability: scored(4.35) }),
+      config,
+      calm,
+    );
+    expect(verdict.reasons).toEqual([
+      "security scored 4.35, below the minimum of 7",
+      "readability scored 4.35, below the advisory floor of 6",
+    ]);
+  });
+
   test("rounds displayed values down so a reason never shows a number that meets the threshold", () => {
     const verdict = decideVerdict(
       evaluation({ ...healthy, correctness: scored(6.999), readability: scored(5.9999) }),
