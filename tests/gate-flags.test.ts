@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { partition } from "../src/diff/partition";
-import type { DiffFile, Partition } from "../src/diff/types";
+import type { DiffFile, ExcludedFile, Partition } from "../src/diff/types";
 import { DEFAULT_GATE_CONFIG, type GateConfig } from "../src/gate/config";
 import { gateFlags } from "../src/gate/flags";
 import { decideVerdict } from "../src/gate/verdict";
@@ -15,13 +15,12 @@ function part(files: DiffFile[], oversized = false): Partition {
 }
 
 function codeChanged(...files: DiffFile[]): boolean {
-  return gateFlags({ files }, [part(files)]).codeChanged;
+  return gateFlags({ files, excluded: [] }, [part(files)]).codeChanged;
 }
 
 describe("gateFlags codeChanged", () => {
   const documentation: [string, string][] = [
     ["a Markdown file anywhere", "src/README.md"],
-    ["an MDX page", "site/page.mdx"],
     ["a .markdown file", "notes.markdown"],
     ["a reStructuredText file", "api/index.rst"],
     ["an AsciiDoc file", "manual.adoc"],
@@ -48,6 +47,7 @@ describe("gateFlags codeChanged", () => {
     ["JSON", "package.json"],
     ["SQL", "migrations/001_init.sql"],
     ["a file with no extension", "Makefile"],
+    ["an MDX page, whose imports and JSX are executed", "docs/page.mdx"],
     ["Python configuration under docs", "docs/conf.py"],
     ["a component under docs", "docs/src/Home.tsx"],
     ["a source file named CHANGELOG", "src/CHANGELOG.ts"],
@@ -94,8 +94,88 @@ describe("gateFlags codeChanged", () => {
   });
 
   test("reports no code change for an empty file list", () => {
-    expect(gateFlags({ files: [] }, []).codeChanged).toBe(false);
+    expect(gateFlags({ files: [], excluded: [] }, []).codeChanged).toBe(false);
   });
+});
+
+describe("gateFlags for files that steer agents", () => {
+  const steering: [string, string][] = [
+    ["a Claude command", ".claude/commands/x.md"],
+    ["a nested Claude agent", "packages/web/.claude/agents/reviewer.md"],
+    ["a Cursor rule", ".cursor/rules/style.md"],
+    ["AGENTS.md", "AGENTS.md"],
+    ["a nested CLAUDE.md", "packages/web/CLAUDE.md"],
+    ["GEMINI.md", "GEMINI.md"],
+    ["the Copilot instructions", ".github/copilot-instructions.md"],
+    ["a Copilot path instruction", ".github/instructions/ts.instructions.md"],
+    ["a Copilot prompt", ".github/prompts/review.prompt.md"],
+  ];
+
+  for (const [kind, path] of steering) {
+    test(`counts ${kind} (${path}) as code even though it is Markdown`, () => {
+      expect(codeChanged(file(path))).toBe(true);
+    });
+  }
+
+  test("counts a rename of an agent instruction file into plain documentation as code", () => {
+    expect(codeChanged(file("docs/old-agents.md", "AGENTS.md"))).toBe(true);
+  });
+});
+
+describe("gateFlags for excluded files", () => {
+  function excluded(path: string, pattern = "**/*"): ExcludedFile {
+    return { path, pattern };
+  }
+
+  function withExcluded(files: DiffFile[], dropped: ExcludedFile[]): boolean {
+    return gateFlags({ files, excluded: dropped }, [part(files)]).codeChanged;
+  }
+
+  test("counts a change hidden by an exclusion, such as a build script under build/, as code", () => {
+    expect(
+      withExcluded([file("README.md")], [excluded("tools/build/release.ts", "**/build/**")]),
+    ).toBe(true);
+  });
+
+  test("counts an excluded bundle such as dist/index.js as code", () => {
+    expect(withExcluded([], [excluded("dist/index.js", "**/dist/**")])).toBe(true);
+  });
+
+  test("does not count a lockfile-only change beside a README as code", () => {
+    expect(withExcluded([file("README.md")], [excluded("bun.lock", "**/bun.lock")])).toBe(false);
+  });
+
+  const inert = [
+    "bun.lock",
+    "packages/api/bun.lockb",
+    "package-lock.json",
+    "web/yarn.lock",
+    "pnpm-lock.yaml",
+    "crates/core/Cargo.lock",
+    "poetry.lock",
+    "go.sum",
+    "assets/logo.png",
+    "fonts/inter.woff2",
+    "media/intro.mp4",
+    "apps/web/comment-census.json",
+    ".release-please-manifest.json",
+    "packages/core/CHANGELOG.md",
+    "packages/db/drizzle/meta/_journal.json",
+  ];
+
+  for (const path of inert) {
+    test(`does not count an excluded inert file (${path}) as code`, () => {
+      expect(withExcluded([], [excluded(path)])).toBe(false);
+    });
+  }
+
+  const notInert = ["generated/client.ts", "src/app.min.js", "out/server.js", "docs/guide.md"];
+
+  for (const path of notInert) {
+    test(`counts an excluded file outside the inert list (${path}) as code`, () => {
+      expect(withExcluded([], [excluded(path)])).toBe(true);
+    });
+  }
 });
 
 describe("gateFlags oversized", () => {
@@ -104,15 +184,15 @@ describe("gateFlags oversized", () => {
   const files = [a, b];
 
   test("is set when any partition is oversized", () => {
-    expect(gateFlags({ files }, [part([a]), part([b], true)]).oversized).toBe(true);
+    expect(gateFlags({ files, excluded: [] }, [part([a]), part([b], true)]).oversized).toBe(true);
   });
 
   test("is clear when no partition is oversized", () => {
-    expect(gateFlags({ files }, [part([a]), part([b])]).oversized).toBe(false);
+    expect(gateFlags({ files, excluded: [] }, [part([a]), part([b])]).oversized).toBe(false);
   });
 
   test("is clear when there are no partitions", () => {
-    expect(gateFlags({ files: [] }, []).oversized).toBe(false);
+    expect(gateFlags({ files: [], excluded: [] }, []).oversized).toBe(false);
   });
 });
 
@@ -156,7 +236,7 @@ describe("gateFlags recomputed on reuse", () => {
     test(`decides ${name} the same when the flags are recomputed from the same diff`, () => {
       const decide = (diffFiles: DiffFile[]) => {
         const partitions = partition(diffFiles, budget);
-        const flags = gateFlags({ files: diffFiles }, partitions);
+        const flags = gateFlags({ files: diffFiles, excluded: [] }, partitions);
         const parts = partitions.map((p) => ({
           evaluation: scoredAs,
           changedLines: p.files.length,
@@ -174,7 +254,7 @@ describe("gateFlags recomputed on reuse", () => {
   test("keeps the oversized-only neutral verdict neutral on reuse instead of turning it into success", () => {
     const files = [file("src/big.ts", null, huge)];
     const partitions = partition(files, budget);
-    const flags = gateFlags({ files }, partitions);
+    const flags = gateFlags({ files, excluded: [] }, partitions);
     const parts = partitions.map(() => ({ evaluation: healthy, changedLines: 1 }));
 
     expect(flags).toEqual({ oversized: true, codeChanged: true });

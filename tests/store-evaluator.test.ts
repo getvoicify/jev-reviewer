@@ -11,7 +11,7 @@ import {
   type MetricQuestions,
   metricKeys,
 } from "../src/metrics";
-import { evaluatorFingerprint } from "../src/store/evaluator";
+import { EVALUATOR_SEMANTICS, evaluatorFingerprint } from "../src/store/evaluator";
 import { planEvaluation } from "../src/store/plan";
 import type { EvaluationRecord } from "../src/store/record";
 
@@ -95,6 +95,25 @@ describe("evaluatorFingerprint", () => {
     expect(evaluatorFingerprint('jev"', defaults, {})).not.toBe(
       evaluatorFingerprint("jev", defaults, {}),
     );
+  });
+});
+
+describe("evaluatorFingerprint over the evaluator semantics", () => {
+  test("starts the semantics version at a positive integer", () => {
+    expect(Number.isSafeInteger(EVALUATOR_SEMANTICS)).toBe(true);
+    expect(EVALUATOR_SEMANTICS).toBeGreaterThanOrEqual(1);
+  });
+
+  test("defaults to the current semantics version", () => {
+    expect(evaluatorFingerprint("jev-latest", defaults)).toBe(
+      evaluatorFingerprint("jev-latest", defaults, questions(), EVALUATOR_SEMANTICS),
+    );
+  });
+
+  test("changes when the semantics version is bumped, so a release never reuses older records", () => {
+    expect(
+      evaluatorFingerprint("jev-latest", defaults, questions(), EVALUATOR_SEMANTICS + 1),
+    ).not.toBe(evaluatorFingerprint("jev-latest", defaults));
   });
 });
 
