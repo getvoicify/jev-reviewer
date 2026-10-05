@@ -90,14 +90,16 @@ describe("gateFlags codeChanged", () => {
 });
 
 describe("gateFlags oversized", () => {
-  const files = [file("src/a.ts"), file("src/b.ts")];
+  const a = file("src/a.ts");
+  const b = file("src/b.ts");
+  const files = [a, b];
 
   test("is set when any partition is oversized", () => {
-    expect(gateFlags({ files }, [part([files[0]!]), part([files[1]!], true)]).oversized).toBe(true);
+    expect(gateFlags({ files }, [part([a]), part([b], true)]).oversized).toBe(true);
   });
 
   test("is clear when no partition is oversized", () => {
-    expect(gateFlags({ files }, [part([files[0]!]), part([files[1]!])]).oversized).toBe(false);
+    expect(gateFlags({ files }, [part([a]), part([b])]).oversized).toBe(false);
   });
 
   test("is clear when there are no partitions", () => {
