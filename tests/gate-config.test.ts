@@ -69,6 +69,12 @@ describe("parseGateConfig", () => {
     expect(() => parseGateConfig(file({ version: 1, ...fields }))).not.toThrow();
   });
 
+  test("names a forbidden key as forbidden rather than reporting the JSON as malformed", () => {
+    expect(() => parseGateConfig('{"version":1,"gated":{"__proto__":7}}')).toThrow(
+      /^Gate config uses a forbidden key "__proto__"$/,
+    );
+  });
+
   describe("refuses a misconfigured gate loudly instead of falling back to defaults", () => {
     test.each([
       ["invalid JSON", "{ version: 1", /not valid JSON/],
@@ -84,8 +90,12 @@ describe("parseGateConfig", () => {
       ["minConfidence above 1", file({ version: 1, minConfidence: 1.01 }), /minConfidence/],
       ["advisoryFloor below 1", file({ version: 1, advisoryFloor: 0.5 }), /advisoryFloor/],
       ["advisoryFloor above 10", file({ version: 1, advisoryFloor: 11 }), /advisoryFloor/],
-      ["a non-integer limitTokens", file({ version: 1, limitTokens: 10.5 }), /limitTokens/],
-      ["a zero limitTokens", file({ version: 1, limitTokens: 0 }), /limitTokens/],
+      [
+        "a non-integer limitTokens",
+        file({ version: 1, limitTokens: 10.5, reservedTokens: 1 }),
+        /limitTokens: /,
+      ],
+      ["a zero limitTokens", file({ version: 1, limitTokens: 0 }), /limitTokens: /],
       ["a negative reservedTokens", file({ version: 1, reservedTokens: -1 }), /reservedTokens/],
       ["a non-string exclude pattern", file({ version: 1, exclude: [3] }), /exclude/],
       ["an empty gated map", file({ version: 1, gated: {} }), /gated/],

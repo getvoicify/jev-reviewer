@@ -5,7 +5,6 @@ import {
   type PartitionEvaluation,
   type ScoredPart,
   scoredParts,
-  validatePartitions,
 } from "./aggregate";
 import type { GateConfig } from "./config";
 
@@ -42,9 +41,8 @@ export function decideVerdict(
   config: GateConfig,
   flags: VerdictFlags,
 ): Verdict {
-  const valid = validatePartitions(parts);
   const aggregate = aggregateEvaluations(
-    valid,
+    parts,
     Object.keys(config.gated) as MetricKey[],
     config.minConfidence,
   );
@@ -52,7 +50,7 @@ export function decideVerdict(
     const minimum = config.gated[key];
     return minimum === undefined
       ? assessAdvisory(key, aggregate, config)
-      : assessGated(key, scoredParts(valid, key), minimum, config);
+      : assessGated(key, scoredParts(parts, key), minimum, config);
   });
   const reasonsFor = (status: MetricStatus) =>
     assessed.flatMap((entry) =>
