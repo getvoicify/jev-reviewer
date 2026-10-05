@@ -3,6 +3,8 @@ import { DEFAULT_EXCLUDE_GLOBS } from "../diff/exclude";
 import type { GateConfig } from "../gate/config";
 import { buildMetricQuestions, type MetricQuestions } from "../metrics";
 
+export const EVALUATOR_SEMANTICS = 1;
+
 function canonical(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(canonical);
   if (value !== null && typeof value === "object") {
@@ -30,8 +32,11 @@ export function evaluatorFingerprint(
   model: string,
   gate: GateConfig,
   questions: MetricQuestions = buildMetricQuestions(),
+  semantics: number = EVALUATOR_SEMANTICS,
 ): string {
   return createHash("sha256")
-    .update(JSON.stringify(canonical({ model, gate: verdictShapingConfig(gate), questions })))
+    .update(
+      JSON.stringify(canonical({ semantics, model, gate: verdictShapingConfig(gate), questions })),
+    )
     .digest("hex");
 }
