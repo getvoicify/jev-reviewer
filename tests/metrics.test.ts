@@ -172,6 +172,11 @@ describe("toEvaluation", () => {
     ]);
   });
 
+  test("leaves a metric scoring exactly 8 out of the priorities", () => {
+    const result = toEvaluation(answers({ readability: { score: 7 } }));
+    expect(result.priorities).toEqual([]);
+  });
+
   test("keeps the five weakest applicable metrics below 8 as priorities", () => {
     const result = toEvaluation(
       answers({
@@ -239,6 +244,15 @@ describe("compareEvaluations", () => {
     expect(direction("duplication")).toBe("unchanged");
     expect(improvements).toEqual(["Readability and intent: 6 → 6.8"]);
     expect(regressions).toEqual(["Security: 6 → 5.2"]);
+  });
+
+  test("reports each delta to one decimal", () => {
+    const previous = toEvaluation(answers({ readability: { score: 5 } }));
+    const current = toEvaluation(answers({ readability: { score: 5.8 } }));
+    const entry = compareEvaluations(current, previous).comparison.find(
+      (candidate) => candidate.metric === "readability",
+    );
+    expect(String(entry?.delta)).toBe("0.8");
   });
 
   test("skips a metric that is not applicable on either side", () => {
