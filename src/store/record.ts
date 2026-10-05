@@ -4,7 +4,7 @@ import { evaluationSchema } from "../metrics/schema";
 export const RECORD_LINE_BUDGET = 30_000;
 
 const MARKER_OPENING = "<!-- jev-gate-record:";
-const LINE_PATTERN = /<!-- jev-gate-record:v1 ([A-Za-z0-9_-]+) -->/;
+const LINE_PATTERN = /^<!-- jev-gate-record:v1 ([A-Za-z0-9_-]+) -->$/;
 
 const gitObjectId = z.string().regex(/^[0-9a-f]{40}$/);
 
@@ -34,7 +34,8 @@ export function encodeRecord(record: EvaluationRecord): string {
 
 export function decodeRecord(text: string | null): EvaluationRecord | null {
   if (text === null || text.split(MARKER_OPENING).length !== 2) return null;
-  const payload = LINE_PATTERN.exec(text)?.[1];
+  const firstLine = text.split("\n", 1)[0] ?? "";
+  const payload = LINE_PATTERN.exec(firstLine.replace(/\r$/, ""))?.[1];
   if (payload === undefined) return null;
   const bytes = Buffer.from(payload, "base64url");
   if (bytes.toString("base64url") !== payload) return null;

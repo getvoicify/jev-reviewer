@@ -55,7 +55,10 @@ describe("planEvaluation", () => {
 
   test("restamps a reused record with the current head and merge base so the next push can load it from this head", () => {
     const record = previous();
-    const plan = planEvaluation(current({ head: "6".repeat(40), mergeBase: "7".repeat(40) }), record);
+    const plan = planEvaluation(
+      current({ head: "6".repeat(40), mergeBase: "7".repeat(40) }),
+      record,
+    );
 
     expect(plan.kind).toBe("reuse");
     if (plan.kind !== "reuse") return;
@@ -63,7 +66,7 @@ describe("planEvaluation", () => {
     expect(plan.record.mergeBase).toBe("7".repeat(40));
     expect(plan.record.patchId).toBe(record.patchId);
     expect(plan.record.evaluator).toBe(record.evaluator);
-    expect(plan.record.evaluation).toBe(record.evaluation);
+    expect(plan.record.evaluation).toEqual(record.evaluation);
     expect(record.head).toBe("3".repeat(40));
     expect(record.mergeBase).toBe("4".repeat(40));
   });

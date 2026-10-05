@@ -1,6 +1,6 @@
 import type { Octokit } from "octokit";
 import { type Annotation, batchAnnotations, COMMENT_MARKER } from "./report";
-import type { CheckRunReader, ListedCheckRun } from "./store/load";
+import type { CheckRunReader, ListedCheckRun, WorkflowRunOrigin } from "./store/load";
 
 export interface PrDetails {
   number: number;
@@ -132,10 +132,26 @@ export class GitHubClient implements GitHubPort, CheckRunReader {
     });
     return runs.map((run) => ({
       appSlug: run.app?.slug ?? null,
+      checkSuiteId: run.check_suite?.id ?? null,
       status: run.status,
       completedAt: run.completed_at,
       outputText: run.output.text,
     }));
+  }
+
+  async workflowRunForCheckSuite(
+    owner: string,
+    repo: string,
+    checkSuiteId: number,
+  ): Promise<WorkflowRunOrigin | null> {
+    const { data } = await this.#octokit.rest.actions.listWorkflowRunsForRepo({
+      owner,
+      repo,
+      check_suite_id: checkSuiteId,
+      per_page: 1,
+    });
+    const run = data.workflow_runs[0];
+    return run === undefined ? null : { path: run.path, event: run.event };
   }
 
   async createCheckRun(owner: string, repo: string, params: CheckRunParams): Promise<void> {
