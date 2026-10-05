@@ -407,21 +407,41 @@ describe("runGate: fingerprint and previous record", () => {
     expect(check.summary).toContain("scored fresh");
   });
 
-  test("loads the previous record of the push's before SHA", async () => {
-    const { records } = await run({ previous: previousRecord() });
-    expect(records.reads[0]).toBe(`list ${recordArtifactName(BEFORE)}`);
+  test("falls back to the push's before SHA when the head has no record", async () => {
+    const { records, jev } = await run({ previous: previousRecord() });
+    const lists = records.reads.filter((read) => read.startsWith("list "));
+    expect(lists).toEqual([
+      `list ${recordArtifactName(HEAD)}`,
+      `list ${recordArtifactName(BEFORE)}`,
+    ]);
+    expect(jev.requests).toHaveLength(0);
   });
+
+  for (const eventAction of ["opened", "reopened", "synchronize", "labeled"]) {
+    test(`reuses the head's own record on a ${eventAction} run, with no Jev call`, async () => {
+      const { records, jev, check } = await run({
+        previous: previousRecord({ head: HEAD }),
+        context: { eventAction },
+      });
+      expect(records.reads[0]).toBe(`list ${recordArtifactName(HEAD)}`);
+      expect(records.reads).not.toContain(`list ${recordArtifactName(BEFORE)}`);
+      expect(jev.requests).toHaveLength(0);
+      expect(check.summary).not.toContain("scored fresh");
+    });
+  }
 
   for (const [label, context] of [
     ["an opened PR", { eventAction: "opened" }],
     ["a reopened PR", { eventAction: "reopened" }],
+    ["a labeled PR", { eventAction: "labeled" }],
     ["a null before SHA", { beforeSha: null }],
     ["an all-zero before SHA", { beforeSha: "0".repeat(40) }],
     ["a malformed before SHA", { beforeSha: "B".repeat(40) }],
   ] as const) {
-    test(`never reads the record store for ${label}`, async () => {
+    test(`never reads the before SHA's record for ${label}`, async () => {
       const { records, jev } = await run({ previous: previousRecord(), context });
-      expect(records.reads).toEqual([]);
+      expect(records.reads[0]).toBe(`list ${recordArtifactName(HEAD)}`);
+      expect(records.reads.filter((read) => read.startsWith("list "))).toHaveLength(1);
       expect(jev.requests).toHaveLength(1);
     });
   }

@@ -135,7 +135,7 @@ describe("parseGateInputs", () => {
         model: "jev-2026-10",
         gateConfigPath: ".github/gate.json",
         trustedWorkflowPath: "voicify/.github/.github/workflows/gate.yml",
-        trustedWorkflowEvent: "pull_request",
+        trustedWorkflowEvent: "pull_request_target",
         overrideLabel: "accept",
         overrideActors: "verygreenboi",
         checkName: "quality",
@@ -151,7 +151,7 @@ describe("parseGateInputs", () => {
       gateConfigPath: ".github/gate.json",
       trustedWorkflow: {
         path: "voicify/.github/.github/workflows/gate.yml",
-        event: "pull_request",
+        event: "pull_request_target",
       },
       overrideLabel: "accept",
       overrideActors: ["verygreenboi"],
@@ -196,11 +196,13 @@ describe("parseGateInputs", () => {
     );
   });
 
-  test("accepts only the pull request events as the trusted event", () => {
-    expect(() =>
-      parseGateInputs(rawGate({ trustedWorkflowEvent: "workflow_run" }), EMPTY_ENV),
-    ).toThrow("trusted-workflow-event must be one of pull_request_target, pull_request");
-  });
+  for (const event of ["pull_request", "workflow_run", "PULL_REQUEST_TARGET"]) {
+    test(`refuses ${event} as the trusted event`, () => {
+      expect(() => parseGateInputs(rawGate({ trustedWorkflowEvent: event }), EMPTY_ENV)).toThrow(
+        `trusted-workflow-event must be pull_request_target, got "${event}"`,
+      );
+    });
+  }
 
   test("lets nobody override when override-actors is empty", () => {
     expect(parseGateInputs(rawGate({ overrideActors: "" }), EMPTY_ENV).overrideActors).toEqual([]);

@@ -221,11 +221,12 @@ describe("renderCheckOutput summary", () => {
     expect(summary).toContain("Oversized files: 3");
   });
 
-  test("names the model and the first seven characters of the head", () => {
-    const { summary } = renderCheckOutput(input({ model: "jev-latest", head: "abcdef0123456" }));
+  test("names the model and the full evaluated head in the check and the comment", () => {
+    const head = "abcdef0123456789abcdef0123456789abcdef01";
+    const { summary } = renderCheckOutput(input({ model: "jev-latest", head }));
     expect(summary).toContain("jev-latest");
-    expect(summary).toContain("abcdef0");
-    expect(summary).not.toContain("abcdef01");
+    expect(summary).toContain(`Head: \`${head}\``);
+    expect(renderComment(input({ head }))).toContain(`Head: \`${head}\``);
   });
 
   test("never lists oversized file names, which a pull request controls", () => {

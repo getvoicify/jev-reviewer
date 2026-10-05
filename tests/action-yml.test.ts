@@ -143,6 +143,7 @@ describe("the README's gate workflow example", () => {
     });
     expect(steps.filter((step) => step.run !== undefined)).toEqual([]);
     const gate = steps.find((step) => step.with?.mode === "gate");
+    expect(gate?.uses).toMatch(/^getvoicify\/jev-reviewer@[0-9a-f]{40}$/);
     expect(gate?.with?.["trusted-workflow-path"]).toBeString();
   });
 });

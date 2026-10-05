@@ -352,6 +352,11 @@ describe("GitHubClient.overrideApproved", () => {
     );
   });
 
+  test("judges only labeled events, not a later unlabeled one", async () => {
+    const events = [labeled(1, OWNER), unlabeled(2, "claude-agent[bot]")];
+    expect((await approved({ events })).result).toBe(true);
+  });
+
   test("ignores labeled events for other labels", async () => {
     const events = [labeled(1, OWNER), labeled(2, "agent", "needs-review")];
     expect((await approved({ events })).result).toBe(true);
