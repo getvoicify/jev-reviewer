@@ -1,0 +1,667 @@
+{
+  "correctness_applicable": {
+    "type": "noul",
+    "instructions": "Does the supplied software-change state contain enough relevant evidence to assess Correctness and requirement fit? Answer no when the context is too thin for a defensible score. Judge requested behavior, missing behavior, edge cases, invariants, assumptions, regressions, completeness, and invalid states. Correctness outweighs style.",
+    "criteria": {
+      "true": "This dimension is relevant and the supplied state supports a defensible assessment.",
+      "false": "This dimension is irrelevant here or the supplied state is insufficient to assess it."
+    }
+  },
+  "correctness_score": {
+    "type": "score",
+    "instructions": "Rate Correctness and requirement fit for the implementation in the supplied software-change state. Evaluate consequences in context, not simplistic size or style rules. Judge requested behavior, missing behavior, edge cases, invariants, assumptions, regressions, completeness, and invalid states. Correctness outweighs style.",
+    "criteria": [
+      "1 — Serious, fundamental problems; unsafe or substantially unfit.",
+      "2 — Severe problems dominate; major rework is required.",
+      "3 — Serious weaknesses; important behavior or design is unreliable.",
+      "4 — Meaningful weaknesses materially impede quality.",
+      "5 — Several consequential weaknesses remain.",
+      "6 — Acceptable baseline, but notable improvement is warranted.",
+      "7 — Sound overall with limited, concrete weaknesses.",
+      "8 — Strong; only minor meaningful improvements are available.",
+      "9 — Very strong and well fitted to its context.",
+      "10 — Exceptional; little meaningful improvement is available. Use rarely."
+    ]
+  },
+  "correctness_weakness": {
+    "type": "choice",
+    "instructions": "Identify the single most consequential Correctness and requirement fit weakness evidenced by the supplied software-change state. Choose no_material_issue when no listed concern is justified. Do not speculate beyond the state.",
+    "criteria": {
+      "no_material_issue": "No material issue is evident from the supplied context.",
+      "missing_behavior": "Requested behavior appears missing or incomplete.",
+      "edge_case": "An important edge case or invalid state appears insufficiently handled.",
+      "incorrect_assumption": "The implementation appears to rely on an unsafe or incorrect assumption.",
+      "regression_risk": "The change creates a meaningful risk of breaking existing behavior."
+    }
+  },
+  "cognitiveComplexity_applicable": {
+    "type": "noul",
+    "instructions": "Does the supplied software-change state contain enough relevant evidence to assess Cognitive complexity? Answer no when the context is too thin for a defensible score. Judge nesting, branching, hidden control flow, indirection, side effects, special cases, state management, and cleverness. Do not use length alone.",
+    "criteria": {
+      "true": "This dimension is relevant and the supplied state supports a defensible assessment.",
+      "false": "This dimension is irrelevant here or the supplied state is insufficient to assess it."
+    }
+  },
+  "cognitiveComplexity_score": {
+    "type": "score",
+    "instructions": "Rate Cognitive complexity for the implementation in the supplied software-change state. Evaluate consequences in context, not simplistic size or style rules. Judge nesting, branching, hidden control flow, indirection, side effects, special cases, state management, and cleverness. Do not use length alone.",
+    "criteria": [
+      "1 — Serious, fundamental problems; unsafe or substantially unfit.",
+      "2 — Severe problems dominate; major rework is required.",
+      "3 — Serious weaknesses; important behavior or design is unreliable.",
+      "4 — Meaningful weaknesses materially impede quality.",
+      "5 — Several consequential weaknesses remain.",
+      "6 — Acceptable baseline, but notable improvement is warranted.",
+      "7 — Sound overall with limited, concrete weaknesses.",
+      "8 — Strong; only minor meaningful improvements are available.",
+      "9 — Very strong and well fitted to its context.",
+      "10 — Exceptional; little meaningful improvement is available. Use rarely."
+    ]
+  },
+  "cognitiveComplexity_weakness": {
+    "type": "choice",
+    "instructions": "Identify the single most consequential Cognitive complexity weakness evidenced by the supplied software-change state. Choose no_material_issue when no listed concern is justified. Do not speculate beyond the state.",
+    "criteria": {
+      "no_material_issue": "No material issue is evident from the supplied context.",
+      "control_flow": "Control flow is harder to follow than the problem requires.",
+      "indirection": "Indirection obscures rather than clarifies the behavior.",
+      "state_management": "State transitions or side effects are difficult to reason about.",
+      "special_cases": "Special cases add disproportionate mental overhead."
+    }
+  },
+  "readability_applicable": {
+    "type": "noul",
+    "instructions": "Does the supplied software-change state contain enough relevant evidence to assess Readability and intent? Answer no when the context is too thin for a defensible score. Judge naming, control-flow and data-flow clarity, responsibilities, transformations, useful comments, unnecessary comments, and consistency.",
+    "criteria": {
+      "true": "This dimension is relevant and the supplied state supports a defensible assessment.",
+      "false": "This dimension is irrelevant here or the supplied state is insufficient to assess it."
+    }
+  },
+  "readability_score": {
+    "type": "score",
+    "instructions": "Rate Readability and intent for the implementation in the supplied software-change state. Evaluate consequences in context, not simplistic size or style rules. Judge naming, control-flow and data-flow clarity, responsibilities, transformations, useful comments, unnecessary comments, and consistency.",
+    "criteria": [
+      "1 — Serious, fundamental problems; unsafe or substantially unfit.",
+      "2 — Severe problems dominate; major rework is required.",
+      "3 — Serious weaknesses; important behavior or design is unreliable.",
+      "4 — Meaningful weaknesses materially impede quality.",
+      "5 — Several consequential weaknesses remain.",
+      "6 — Acceptable baseline, but notable improvement is warranted.",
+      "7 — Sound overall with limited, concrete weaknesses.",
+      "8 — Strong; only minor meaningful improvements are available.",
+      "9 — Very strong and well fitted to its context.",
+      "10 — Exceptional; little meaningful improvement is available. Use rarely."
+    ]
+  },
+  "readability_weakness": {
+    "type": "choice",
+    "instructions": "Identify the single most consequential Readability and intent weakness evidenced by the supplied software-change state. Choose no_material_issue when no listed concern is justified. Do not speculate beyond the state.",
+    "criteria": {
+      "no_material_issue": "No material issue is evident from the supplied context.",
+      "naming": "Names do not communicate intent precisely enough.",
+      "flow_clarity": "The control or data flow is not immediately understandable.",
+      "responsibility_clarity": "Responsibilities or transformations are difficult to identify.",
+      "comment_quality": "Comments are missing where rationale matters or add noise without rationale."
+    }
+  },
+  "modularity_applicable": {
+    "type": "noul",
+    "instructions": "Does the supplied software-change state contain enough relevant evidence to assess Modularity and cohesion? Answer no when the context is too thin for a defensible score. Judge coherent grouping, separation of unrelated responsibilities, god modules, fragmentation, domain boundaries, and colocation. Do not reward small files by default.",
+    "criteria": {
+      "true": "This dimension is relevant and the supplied state supports a defensible assessment.",
+      "false": "This dimension is irrelevant here or the supplied state is insufficient to assess it."
+    }
+  },
+  "modularity_score": {
+    "type": "score",
+    "instructions": "Rate Modularity and cohesion for the implementation in the supplied software-change state. Evaluate consequences in context, not simplistic size or style rules. Judge coherent grouping, separation of unrelated responsibilities, god modules, fragmentation, domain boundaries, and colocation. Do not reward small files by default.",
+    "criteria": [
+      "1 — Serious, fundamental problems; unsafe or substantially unfit.",
+      "2 — Severe problems dominate; major rework is required.",
+      "3 — Serious weaknesses; important behavior or design is unreliable.",
+      "4 — Meaningful weaknesses materially impede quality.",
+      "5 — Several consequential weaknesses remain.",
+      "6 — Acceptable baseline, but notable improvement is warranted.",
+      "7 — Sound overall with limited, concrete weaknesses.",
+      "8 — Strong; only minor meaningful improvements are available.",
+      "9 — Very strong and well fitted to its context.",
+      "10 — Exceptional; little meaningful improvement is available. Use rarely."
+    ]
+  },
+  "modularity_weakness": {
+    "type": "choice",
+    "instructions": "Identify the single most consequential Modularity and cohesion weakness evidenced by the supplied software-change state. Choose no_material_issue when no listed concern is justified. Do not speculate beyond the state.",
+    "criteria": {
+      "no_material_issue": "No material issue is evident from the supplied context.",
+      "mixed_responsibilities": "Unrelated responsibilities are coupled in the same module or boundary.",
+      "fragmentation": "Related behavior is fragmented across too many locations.",
+      "weak_boundary": "A module or domain boundary is unclear or poorly placed.",
+      "god_module": "One module owns too many independently changing concerns."
+    }
+  },
+  "coupling_applicable": {
+    "type": "noul",
+    "instructions": "Does the supplied software-change state contain enough relevant evidence to assess Coupling and dependency quality? Answer no when the context is too thin for a defensible score. Judge unnecessary dependencies, dependency direction, leaked implementation details, circularity, global state, hidden dependencies, and tight coupling.",
+    "criteria": {
+      "true": "This dimension is relevant and the supplied state supports a defensible assessment.",
+      "false": "This dimension is irrelevant here or the supplied state is insufficient to assess it."
+    }
+  },
+  "coupling_score": {
+    "type": "score",
+    "instructions": "Rate Coupling and dependency quality for the implementation in the supplied software-change state. Evaluate consequences in context, not simplistic size or style rules. Judge unnecessary dependencies, dependency direction, leaked implementation details, circularity, global state, hidden dependencies, and tight coupling.",
+    "criteria": [
+      "1 — Serious, fundamental problems; unsafe or substantially unfit.",
+      "2 — Severe problems dominate; major rework is required.",
+      "3 — Serious weaknesses; important behavior or design is unreliable.",
+      "4 — Meaningful weaknesses materially impede quality.",
+      "5 — Several consequential weaknesses remain.",
+      "6 — Acceptable baseline, but notable improvement is warranted.",
+      "7 — Sound overall with limited, concrete weaknesses.",
+      "8 — Strong; only minor meaningful improvements are available.",
+      "9 — Very strong and well fitted to its context.",
+      "10 — Exceptional; little meaningful improvement is available. Use rarely."
+    ]
+  },
+  "coupling_weakness": {
+    "type": "choice",
+    "instructions": "Identify the single most consequential Coupling and dependency quality weakness evidenced by the supplied software-change state. Choose no_material_issue when no listed concern is justified. Do not speculate beyond the state.",
+    "criteria": {
+      "no_material_issue": "No material issue is evident from the supplied context.",
+      "unnecessary_dependency": "A dependency is broader or less necessary than the behavior requires.",
+      "leaked_detail": "Implementation details leak through a module or API boundary.",
+      "hidden_dependency": "A global or implicit dependency makes behavior harder to predict.",
+      "dependency_direction": "Dependency direction works against the intended boundary."
+    }
+  },
+  "changeability_applicable": {
+    "type": "noul",
+    "instructions": "Does the supplied software-change state contain enough relevant evidence to assess Changeability and change amplification? Answer no when the context is too thin for a defensible score. Judge shotgun surgery, scattered rules, duplicated knowledge, hidden dependencies, brittle chains, and edits across unrelated modules. A conceptual change should touch predictable locations.",
+    "criteria": {
+      "true": "This dimension is relevant and the supplied state supports a defensible assessment.",
+      "false": "This dimension is irrelevant here or the supplied state is insufficient to assess it."
+    }
+  },
+  "changeability_score": {
+    "type": "score",
+    "instructions": "Rate Changeability and change amplification for the implementation in the supplied software-change state. Evaluate consequences in context, not simplistic size or style rules. Judge shotgun surgery, scattered rules, duplicated knowledge, hidden dependencies, brittle chains, and edits across unrelated modules. A conceptual change should touch predictable locations.",
+    "criteria": [
+      "1 — Serious, fundamental problems; unsafe or substantially unfit.",
+      "2 — Severe problems dominate; major rework is required.",
+      "3 — Serious weaknesses; important behavior or design is unreliable.",
+      "4 — Meaningful weaknesses materially impede quality.",
+      "5 — Several consequential weaknesses remain.",
+      "6 — Acceptable baseline, but notable improvement is warranted.",
+      "7 — Sound overall with limited, concrete weaknesses.",
+      "8 — Strong; only minor meaningful improvements are available.",
+      "9 — Very strong and well fitted to its context.",
+      "10 — Exceptional; little meaningful improvement is available. Use rarely."
+    ]
+  },
+  "changeability_weakness": {
+    "type": "choice",
+    "instructions": "Identify the single most consequential Changeability and change amplification weakness evidenced by the supplied software-change state. Choose no_material_issue when no listed concern is justified. Do not speculate beyond the state.",
+    "criteria": {
+      "no_material_issue": "No material issue is evident from the supplied context.",
+      "scattered_rule": "A domain rule or decision is scattered across multiple locations.",
+      "shotgun_surgery": "A small conceptual change is likely to require edits in many places.",
+      "brittle_chain": "A brittle dependency chain amplifies otherwise local changes.",
+      "hidden_dependency": "Hidden dependencies make the impact of a change unpredictable."
+    }
+  },
+  "abstractionQuality_applicable": {
+    "type": "noul",
+    "instructions": "Does the supplied software-change state contain enough relevant evidence to assess Abstraction and API design? Answer no when the context is too thin for a defensible score. Judge interface simplicity, information hiding, depth, premature abstraction, wrappers, configurability, unrelated concepts, and leaked details. Prefer useful deep modules.",
+    "criteria": {
+      "true": "This dimension is relevant and the supplied state supports a defensible assessment.",
+      "false": "This dimension is irrelevant here or the supplied state is insufficient to assess it."
+    }
+  },
+  "abstractionQuality_score": {
+    "type": "score",
+    "instructions": "Rate Abstraction and API design for the implementation in the supplied software-change state. Evaluate consequences in context, not simplistic size or style rules. Judge interface simplicity, information hiding, depth, premature abstraction, wrappers, configurability, unrelated concepts, and leaked details. Prefer useful deep modules.",
+    "criteria": [
+      "1 — Serious, fundamental problems; unsafe or substantially unfit.",
+      "2 — Severe problems dominate; major rework is required.",
+      "3 — Serious weaknesses; important behavior or design is unreliable.",
+      "4 — Meaningful weaknesses materially impede quality.",
+      "5 — Several consequential weaknesses remain.",
+      "6 — Acceptable baseline, but notable improvement is warranted.",
+      "7 — Sound overall with limited, concrete weaknesses.",
+      "8 — Strong; only minor meaningful improvements are available.",
+      "9 — Very strong and well fitted to its context.",
+      "10 — Exceptional; little meaningful improvement is available. Use rarely."
+    ]
+  },
+  "abstractionQuality_weakness": {
+    "type": "choice",
+    "instructions": "Identify the single most consequential Abstraction and API design weakness evidenced by the supplied software-change state. Choose no_material_issue when no listed concern is justified. Do not speculate beyond the state.",
+    "criteria": {
+      "no_material_issue": "No material issue is evident from the supplied context.",
+      "shallow_wrapper": "A wrapper or layer adds surface without hiding meaningful complexity.",
+      "premature_abstraction": "An abstraction generalizes before the underlying concepts are stable or shared.",
+      "leaky_api": "The API exposes details callers should not need to know.",
+      "overloaded_abstraction": "One abstraction combines concepts that should vary independently."
+    }
+  },
+  "projectStructure_applicable": {
+    "type": "noul",
+    "instructions": "Does the supplied software-change state contain enough relevant evidence to assess Project and file structure? Answer no when the context is too thin for a defensible score. Judge navigation, module and domain boundaries, utility dumping grounds, god files, fragmentation, and feature code spread. Do not judge file counts or depth alone.",
+    "criteria": {
+      "true": "This dimension is relevant and the supplied state supports a defensible assessment.",
+      "false": "This dimension is irrelevant here or the supplied state is insufficient to assess it."
+    }
+  },
+  "projectStructure_score": {
+    "type": "score",
+    "instructions": "Rate Project and file structure for the implementation in the supplied software-change state. Evaluate consequences in context, not simplistic size or style rules. Judge navigation, module and domain boundaries, utility dumping grounds, god files, fragmentation, and feature code spread. Do not judge file counts or depth alone.",
+    "criteria": [
+      "1 — Serious, fundamental problems; unsafe or substantially unfit.",
+      "2 — Severe problems dominate; major rework is required.",
+      "3 — Serious weaknesses; important behavior or design is unreliable.",
+      "4 — Meaningful weaknesses materially impede quality.",
+      "5 — Several consequential weaknesses remain.",
+      "6 — Acceptable baseline, but notable improvement is warranted.",
+      "7 — Sound overall with limited, concrete weaknesses.",
+      "8 — Strong; only minor meaningful improvements are available.",
+      "9 — Very strong and well fitted to its context.",
+      "10 — Exceptional; little meaningful improvement is available. Use rarely."
+    ]
+  },
+  "projectStructure_weakness": {
+    "type": "choice",
+    "instructions": "Identify the single most consequential Project and file structure weakness evidenced by the supplied software-change state. Choose no_material_issue when no listed concern is justified. Do not speculate beyond the state.",
+    "criteria": {
+      "no_material_issue": "No material issue is evident from the supplied context.",
+      "unpredictable_location": "Code is located where future maintainers are unlikely to look for it.",
+      "utility_dumping_ground": "General-purpose utility placement hides a domain responsibility.",
+      "scattered_feature": "Related feature code is spread across unrelated directories or files.",
+      "excessive_fragmentation": "The structure fragments a cohesive concept without clarifying boundaries."
+    }
+  },
+  "duplication_applicable": {
+    "type": "noul",
+    "instructions": "Does the supplied software-change state contain enough relevant evidence to assess Duplication and reuse? Answer no when the context is too thin for a defensible score. Judge duplicated knowledge, repeated business rules, logic that must change together, and missed reuse. Do not enforce syntactic DRY or couple merely similar code.",
+    "criteria": {
+      "true": "This dimension is relevant and the supplied state supports a defensible assessment.",
+      "false": "This dimension is irrelevant here or the supplied state is insufficient to assess it."
+    }
+  },
+  "duplication_score": {
+    "type": "score",
+    "instructions": "Rate Duplication and reuse for the implementation in the supplied software-change state. Evaluate consequences in context, not simplistic size or style rules. Judge duplicated knowledge, repeated business rules, logic that must change together, and missed reuse. Do not enforce syntactic DRY or couple merely similar code.",
+    "criteria": [
+      "1 — Serious, fundamental problems; unsafe or substantially unfit.",
+      "2 — Severe problems dominate; major rework is required.",
+      "3 — Serious weaknesses; important behavior or design is unreliable.",
+      "4 — Meaningful weaknesses materially impede quality.",
+      "5 — Several consequential weaknesses remain.",
+      "6 — Acceptable baseline, but notable improvement is warranted.",
+      "7 — Sound overall with limited, concrete weaknesses.",
+      "8 — Strong; only minor meaningful improvements are available.",
+      "9 — Very strong and well fitted to its context.",
+      "10 — Exceptional; little meaningful improvement is available. Use rarely."
+    ]
+  },
+  "duplication_weakness": {
+    "type": "choice",
+    "instructions": "Identify the single most consequential Duplication and reuse weakness evidenced by the supplied software-change state. Choose no_material_issue when no listed concern is justified. Do not speculate beyond the state.",
+    "criteria": {
+      "no_material_issue": "No material issue is evident from the supplied context.",
+      "duplicated_rule": "The same rule or source of truth appears in multiple places.",
+      "repeated_knowledge": "Knowledge that should change together is represented independently.",
+      "missed_existing_reuse": "Existing functionality could be reused without introducing inappropriate coupling.",
+      "forced_reuse": "Reuse or deduplication creates coupling between concepts that should remain separate."
+    }
+  },
+  "maintainability_applicable": {
+    "type": "noul",
+    "instructions": "Does the supplied software-change state contain enough relevant evidence to assess Maintainability? Answer no when the context is too thin for a defensible score. Judge the combined cost of understanding, modifying, debugging, testing, and extending the implementation. Do not infer it from lines of code alone.",
+    "criteria": {
+      "true": "This dimension is relevant and the supplied state supports a defensible assessment.",
+      "false": "This dimension is irrelevant here or the supplied state is insufficient to assess it."
+    }
+  },
+  "maintainability_score": {
+    "type": "score",
+    "instructions": "Rate Maintainability for the implementation in the supplied software-change state. Evaluate consequences in context, not simplistic size or style rules. Judge the combined cost of understanding, modifying, debugging, testing, and extending the implementation. Do not infer it from lines of code alone.",
+    "criteria": [
+      "1 — Serious, fundamental problems; unsafe or substantially unfit.",
+      "2 — Severe problems dominate; major rework is required.",
+      "3 — Serious weaknesses; important behavior or design is unreliable.",
+      "4 — Meaningful weaknesses materially impede quality.",
+      "5 — Several consequential weaknesses remain.",
+      "6 — Acceptable baseline, but notable improvement is warranted.",
+      "7 — Sound overall with limited, concrete weaknesses.",
+      "8 — Strong; only minor meaningful improvements are available.",
+      "9 — Very strong and well fitted to its context.",
+      "10 — Exceptional; little meaningful improvement is available. Use rarely."
+    ]
+  },
+  "maintainability_weakness": {
+    "type": "choice",
+    "instructions": "Identify the single most consequential Maintainability weakness evidenced by the supplied software-change state. Choose no_material_issue when no listed concern is justified. Do not speculate beyond the state.",
+    "criteria": {
+      "no_material_issue": "No material issue is evident from the supplied context.",
+      "understanding_cost": "The implementation has a high recurring cost to understand.",
+      "modification_cost": "Routine modification is likely to be slow or error-prone.",
+      "debugging_cost": "Failures would be difficult to isolate and diagnose.",
+      "extension_cost": "Expected extension points are awkward or unsafe to use."
+    }
+  },
+  "testQuality_applicable": {
+    "type": "noul",
+    "instructions": "Does the supplied software-change state contain enough relevant evidence to assess Testability and test quality? Answer no when the context is too thin for a defensible score. Judge behavior coverage, assertions, determinism, isolation, edge and failure cases, regression protection, mocking, and coupling to implementation details.",
+    "criteria": {
+      "true": "This dimension is relevant and the supplied state supports a defensible assessment.",
+      "false": "This dimension is irrelevant here or the supplied state is insufficient to assess it."
+    }
+  },
+  "testQuality_score": {
+    "type": "score",
+    "instructions": "Rate Testability and test quality for the implementation in the supplied software-change state. Evaluate consequences in context, not simplistic size or style rules. Judge behavior coverage, assertions, determinism, isolation, edge and failure cases, regression protection, mocking, and coupling to implementation details.",
+    "criteria": [
+      "1 — Serious, fundamental problems; unsafe or substantially unfit.",
+      "2 — Severe problems dominate; major rework is required.",
+      "3 — Serious weaknesses; important behavior or design is unreliable.",
+      "4 — Meaningful weaknesses materially impede quality.",
+      "5 — Several consequential weaknesses remain.",
+      "6 — Acceptable baseline, but notable improvement is warranted.",
+      "7 — Sound overall with limited, concrete weaknesses.",
+      "8 — Strong; only minor meaningful improvements are available.",
+      "9 — Very strong and well fitted to its context.",
+      "10 — Exceptional; little meaningful improvement is available. Use rarely."
+    ]
+  },
+  "testQuality_weakness": {
+    "type": "choice",
+    "instructions": "Identify the single most consequential Testability and test quality weakness evidenced by the supplied software-change state. Choose no_material_issue when no listed concern is justified. Do not speculate beyond the state.",
+    "criteria": {
+      "no_material_issue": "No material issue is evident from the supplied context.",
+      "missing_coverage": "Important changed behavior lacks meaningful regression coverage.",
+      "weak_assertions": "Tests execute code without proving the important outcome.",
+      "brittle_tests": "Tests are coupled to implementation details or excessive mocking.",
+      "nondeterminism": "Test design or architecture makes results nondeterministic or poorly isolated."
+    }
+  },
+  "reliability_applicable": {
+    "type": "noul",
+    "instructions": "Does the supplied software-change state contain enough relevant evidence to assess Reliability and error handling? Answer no when the context is too thin for a defensible score. Judge relevant error propagation, invalid states, cleanup, retries, timeouts, races, concurrency, transaction integrity, graceful failure, and recovery.",
+    "criteria": {
+      "true": "This dimension is relevant and the supplied state supports a defensible assessment.",
+      "false": "This dimension is irrelevant here or the supplied state is insufficient to assess it."
+    }
+  },
+  "reliability_score": {
+    "type": "score",
+    "instructions": "Rate Reliability and error handling for the implementation in the supplied software-change state. Evaluate consequences in context, not simplistic size or style rules. Judge relevant error propagation, invalid states, cleanup, retries, timeouts, races, concurrency, transaction integrity, graceful failure, and recovery.",
+    "criteria": [
+      "1 — Serious, fundamental problems; unsafe or substantially unfit.",
+      "2 — Severe problems dominate; major rework is required.",
+      "3 — Serious weaknesses; important behavior or design is unreliable.",
+      "4 — Meaningful weaknesses materially impede quality.",
+      "5 — Several consequential weaknesses remain.",
+      "6 — Acceptable baseline, but notable improvement is warranted.",
+      "7 — Sound overall with limited, concrete weaknesses.",
+      "8 — Strong; only minor meaningful improvements are available.",
+      "9 — Very strong and well fitted to its context.",
+      "10 — Exceptional; little meaningful improvement is available. Use rarely."
+    ]
+  },
+  "reliability_weakness": {
+    "type": "choice",
+    "instructions": "Identify the single most consequential Reliability and error handling weakness evidenced by the supplied software-change state. Choose no_material_issue when no listed concern is justified. Do not speculate beyond the state.",
+    "criteria": {
+      "no_material_issue": "No material issue is evident from the supplied context.",
+      "error_propagation": "Errors are swallowed, distorted, or propagated without useful boundaries.",
+      "cleanup": "A failure path can leave resources or state inconsistent.",
+      "timeout_retry": "Timeout or retry behavior is missing, unsafe, or disproportionate.",
+      "concurrency": "A race or concurrency assumption threatens reliable behavior."
+    }
+  },
+  "security_applicable": {
+    "type": "noul",
+    "instructions": "Does the supplied software-change state contain enough relevant evidence to assess Security? Answer no when the context is too thin for a defensible score. Judge relevant trust boundaries, validation, injection, authentication, authorization, secrets, sensitive data, deserialization, defaults, privileges, business logic, and dependencies.",
+    "criteria": {
+      "true": "This dimension is relevant and the supplied state supports a defensible assessment.",
+      "false": "This dimension is irrelevant here or the supplied state is insufficient to assess it."
+    }
+  },
+  "security_score": {
+    "type": "score",
+    "instructions": "Rate Security for the implementation in the supplied software-change state. Evaluate consequences in context, not simplistic size or style rules. Judge relevant trust boundaries, validation, injection, authentication, authorization, secrets, sensitive data, deserialization, defaults, privileges, business logic, and dependencies.",
+    "criteria": [
+      "1 — Serious, fundamental problems; unsafe or substantially unfit.",
+      "2 — Severe problems dominate; major rework is required.",
+      "3 — Serious weaknesses; important behavior or design is unreliable.",
+      "4 — Meaningful weaknesses materially impede quality.",
+      "5 — Several consequential weaknesses remain.",
+      "6 — Acceptable baseline, but notable improvement is warranted.",
+      "7 — Sound overall with limited, concrete weaknesses.",
+      "8 — Strong; only minor meaningful improvements are available.",
+      "9 — Very strong and well fitted to its context.",
+      "10 — Exceptional; little meaningful improvement is available. Use rarely."
+    ]
+  },
+  "security_weakness": {
+    "type": "choice",
+    "instructions": "Identify the single most consequential Security weakness evidenced by the supplied software-change state. Choose no_material_issue when no listed concern is justified. Do not speculate beyond the state.",
+    "criteria": {
+      "no_material_issue": "No material issue is evident from the supplied context.",
+      "input_validation": "Untrusted input crosses a boundary without sufficient validation or safe handling.",
+      "secret_handling": "Secret or sensitive-data handling creates unnecessary exposure risk.",
+      "authorization": "Authentication, authorization, or privilege boundaries appear insufficient.",
+      "injection": "Data may reach an interpreter or sensitive sink without appropriate separation."
+    }
+  },
+  "consistency_applicable": {
+    "type": "noul",
+    "instructions": "Does the supplied software-change state contain enough relevant evidence to assess Consistency and conventions? Answer no when the context is too thin for a defensible score. Judge fit with repository architecture, naming, language idioms, project conventions, competing implementations, and unnecessary new patterns. Repository conventions outweigh generic style.",
+    "criteria": {
+      "true": "This dimension is relevant and the supplied state supports a defensible assessment.",
+      "false": "This dimension is irrelevant here or the supplied state is insufficient to assess it."
+    }
+  },
+  "consistency_score": {
+    "type": "score",
+    "instructions": "Rate Consistency and conventions for the implementation in the supplied software-change state. Evaluate consequences in context, not simplistic size or style rules. Judge fit with repository architecture, naming, language idioms, project conventions, competing implementations, and unnecessary new patterns. Repository conventions outweigh generic style.",
+    "criteria": [
+      "1 — Serious, fundamental problems; unsafe or substantially unfit.",
+      "2 — Severe problems dominate; major rework is required.",
+      "3 — Serious weaknesses; important behavior or design is unreliable.",
+      "4 — Meaningful weaknesses materially impede quality.",
+      "5 — Several consequential weaknesses remain.",
+      "6 — Acceptable baseline, but notable improvement is warranted.",
+      "7 — Sound overall with limited, concrete weaknesses.",
+      "8 — Strong; only minor meaningful improvements are available.",
+      "9 — Very strong and well fitted to its context.",
+      "10 — Exceptional; little meaningful improvement is available. Use rarely."
+    ]
+  },
+  "consistency_weakness": {
+    "type": "choice",
+    "instructions": "Identify the single most consequential Consistency and conventions weakness evidenced by the supplied software-change state. Choose no_material_issue when no listed concern is justified. Do not speculate beyond the state.",
+    "criteria": {
+      "no_material_issue": "No material issue is evident from the supplied context.",
+      "repository_pattern": "The change diverges from an established repository pattern without clear benefit.",
+      "naming_convention": "Naming or language idioms conflict with nearby code.",
+      "competing_pattern": "The change introduces a second way to solve an already standardized problem.",
+      "local_inconsistency": "Related parts of the change follow inconsistent conventions."
+    }
+  },
+  "documentation_applicable": {
+    "type": "noul",
+    "instructions": "Does the supplied software-change state contain enough relevant evidence to assess Documentation and explainability? Answer no when the context is too thin for a defensible score. Judge public contracts, decisions, unusual constraints, configuration, difficult rules, changed APIs, and comments explaining why. Do not reward volume.",
+    "criteria": {
+      "true": "This dimension is relevant and the supplied state supports a defensible assessment.",
+      "false": "This dimension is irrelevant here or the supplied state is insufficient to assess it."
+    }
+  },
+  "documentation_score": {
+    "type": "score",
+    "instructions": "Rate Documentation and explainability for the implementation in the supplied software-change state. Evaluate consequences in context, not simplistic size or style rules. Judge public contracts, decisions, unusual constraints, configuration, difficult rules, changed APIs, and comments explaining why. Do not reward volume.",
+    "criteria": [
+      "1 — Serious, fundamental problems; unsafe or substantially unfit.",
+      "2 — Severe problems dominate; major rework is required.",
+      "3 — Serious weaknesses; important behavior or design is unreliable.",
+      "4 — Meaningful weaknesses materially impede quality.",
+      "5 — Several consequential weaknesses remain.",
+      "6 — Acceptable baseline, but notable improvement is warranted.",
+      "7 — Sound overall with limited, concrete weaknesses.",
+      "8 — Strong; only minor meaningful improvements are available.",
+      "9 — Very strong and well fitted to its context.",
+      "10 — Exceptional; little meaningful improvement is available. Use rarely."
+    ]
+  },
+  "documentation_weakness": {
+    "type": "choice",
+    "instructions": "Identify the single most consequential Documentation and explainability weakness evidenced by the supplied software-change state. Choose no_material_issue when no listed concern is justified. Do not speculate beyond the state.",
+    "criteria": {
+      "no_material_issue": "No material issue is evident from the supplied context.",
+      "public_contract": "A public or changed contract is not documented clearly enough.",
+      "rationale": "A non-obvious decision or constraint lacks an explanation of why.",
+      "configuration": "Required configuration or operational use is insufficiently documented.",
+      "comment_noise": "Documentation volume obscures rather than explains important information."
+    }
+  },
+  "performance_applicable": {
+    "type": "noul",
+    "instructions": "Is Performance and resource efficiency actually relevant and assessable from the supplied software-change state? Answer yes only when the state contains concrete evidence that this dimension matters; do not invent concerns. Only when relevant, judge algorithmic cost, computation, memory, requests, database access, N+1 patterns, I/O, and repeated work. Require evidence; do not invent bottlenecks.",
+    "criteria": {
+      "true": "This dimension is relevant and the supplied state supports a defensible assessment.",
+      "false": "This dimension is irrelevant here or the supplied state is insufficient to assess it."
+    }
+  },
+  "performance_score": {
+    "type": "score",
+    "instructions": "Rate Performance and resource efficiency for the implementation in the supplied software-change state. Evaluate consequences in context, not simplistic size or style rules. Only when relevant, judge algorithmic cost, computation, memory, requests, database access, N+1 patterns, I/O, and repeated work. Require evidence; do not invent bottlenecks.",
+    "criteria": [
+      "1 — Serious, fundamental problems; unsafe or substantially unfit.",
+      "2 — Severe problems dominate; major rework is required.",
+      "3 — Serious weaknesses; important behavior or design is unreliable.",
+      "4 — Meaningful weaknesses materially impede quality.",
+      "5 — Several consequential weaknesses remain.",
+      "6 — Acceptable baseline, but notable improvement is warranted.",
+      "7 — Sound overall with limited, concrete weaknesses.",
+      "8 — Strong; only minor meaningful improvements are available.",
+      "9 — Very strong and well fitted to its context.",
+      "10 — Exceptional; little meaningful improvement is available. Use rarely."
+    ]
+  },
+  "performance_weakness": {
+    "type": "choice",
+    "instructions": "Identify the single most consequential Performance and resource efficiency weakness evidenced by the supplied software-change state. Choose no_material_issue when no listed concern is justified. Do not speculate beyond the state.",
+    "criteria": {
+      "no_material_issue": "No material issue is evident from the supplied context.",
+      "algorithmic_cost": "The relevant path has avoidable algorithmic cost.",
+      "repeated_work": "Meaningful computation or I/O is repeated unnecessarily.",
+      "resource_use": "Memory, network, database, or filesystem use is disproportionate.",
+      "n_plus_one": "Work scales per item where it could be performed in a bounded batch."
+    }
+  },
+  "scalability_applicable": {
+    "type": "noul",
+    "instructions": "Is Scalability and flexibility actually relevant and assessable from the supplied software-change state? Answer yes only when the state contains concrete evidence that this dimension matters; do not invent concerns. Only when expected growth or change is evidenced, judge whether the implementation can accommodate it. Do not reward speculative architecture.",
+    "criteria": {
+      "true": "This dimension is relevant and the supplied state supports a defensible assessment.",
+      "false": "This dimension is irrelevant here or the supplied state is insufficient to assess it."
+    }
+  },
+  "scalability_score": {
+    "type": "score",
+    "instructions": "Rate Scalability and flexibility for the implementation in the supplied software-change state. Evaluate consequences in context, not simplistic size or style rules. Only when expected growth or change is evidenced, judge whether the implementation can accommodate it. Do not reward speculative architecture.",
+    "criteria": [
+      "1 — Serious, fundamental problems; unsafe or substantially unfit.",
+      "2 — Severe problems dominate; major rework is required.",
+      "3 — Serious weaknesses; important behavior or design is unreliable.",
+      "4 — Meaningful weaknesses materially impede quality.",
+      "5 — Several consequential weaknesses remain.",
+      "6 — Acceptable baseline, but notable improvement is warranted.",
+      "7 — Sound overall with limited, concrete weaknesses.",
+      "8 — Strong; only minor meaningful improvements are available.",
+      "9 — Very strong and well fitted to its context.",
+      "10 — Exceptional; little meaningful improvement is available. Use rarely."
+    ]
+  },
+  "scalability_weakness": {
+    "type": "choice",
+    "instructions": "Identify the single most consequential Scalability and flexibility weakness evidenced by the supplied software-change state. Choose no_material_issue when no listed concern is justified. Do not speculate beyond the state.",
+    "criteria": {
+      "no_material_issue": "No material issue is evident from the supplied context.",
+      "growth_bottleneck": "An evidenced growth dimension reaches a clear implementation bottleneck.",
+      "rigid_assumption": "A known variation is blocked by an unnecessarily rigid assumption.",
+      "speculative_architecture": "The design pays complexity now for hypothetical growth without evidence.",
+      "scaling_boundary": "A scaling boundary is placed where work or state cannot be managed predictably."
+    }
+  },
+  "compatibility_applicable": {
+    "type": "noul",
+    "instructions": "Is Compatibility and API stability actually relevant and assessable from the supplied software-change state? Answer yes only when the state contains concrete evidence that this dimension matters; do not invent concerns. Only when contracts or integrations are relevant, judge backwards compatibility, public APIs, migrations, breaking changes, interoperability, and version compatibility.",
+    "criteria": {
+      "true": "This dimension is relevant and the supplied state supports a defensible assessment.",
+      "false": "This dimension is irrelevant here or the supplied state is insufficient to assess it."
+    }
+  },
+  "compatibility_score": {
+    "type": "score",
+    "instructions": "Rate Compatibility and API stability for the implementation in the supplied software-change state. Evaluate consequences in context, not simplistic size or style rules. Only when contracts or integrations are relevant, judge backwards compatibility, public APIs, migrations, breaking changes, interoperability, and version compatibility.",
+    "criteria": [
+      "1 — Serious, fundamental problems; unsafe or substantially unfit.",
+      "2 — Severe problems dominate; major rework is required.",
+      "3 — Serious weaknesses; important behavior or design is unreliable.",
+      "4 — Meaningful weaknesses materially impede quality.",
+      "5 — Several consequential weaknesses remain.",
+      "6 — Acceptable baseline, but notable improvement is warranted.",
+      "7 — Sound overall with limited, concrete weaknesses.",
+      "8 — Strong; only minor meaningful improvements are available.",
+      "9 — Very strong and well fitted to its context.",
+      "10 — Exceptional; little meaningful improvement is available. Use rarely."
+    ]
+  },
+  "compatibility_weakness": {
+    "type": "choice",
+    "instructions": "Identify the single most consequential Compatibility and API stability weakness evidenced by the supplied software-change state. Choose no_material_issue when no listed concern is justified. Do not speculate beyond the state.",
+    "criteria": {
+      "no_material_issue": "No material issue is evident from the supplied context.",
+      "breaking_change": "The change appears to break an existing public or integration contract.",
+      "migration_gap": "A required migration or compatibility path is missing.",
+      "version_assumption": "The implementation assumes a version or capability not established by context.",
+      "interoperability": "The change reduces interoperability across supported consumers."
+    }
+  },
+  "observability_applicable": {
+    "type": "noul",
+    "instructions": "Is Observability and operability actually relevant and assessable from the supplied software-change state? Answer yes only when the state contains concrete evidence that this dimension matters; do not invent concerns. Only when operational behavior is relevant, judge logging, metrics, tracing, diagnostics, debugging, and production failure visibility.",
+    "criteria": {
+      "true": "This dimension is relevant and the supplied state supports a defensible assessment.",
+      "false": "This dimension is irrelevant here or the supplied state is insufficient to assess it."
+    }
+  },
+  "observability_score": {
+    "type": "score",
+    "instructions": "Rate Observability and operability for the implementation in the supplied software-change state. Evaluate consequences in context, not simplistic size or style rules. Only when operational behavior is relevant, judge logging, metrics, tracing, diagnostics, debugging, and production failure visibility.",
+    "criteria": [
+      "1 — Serious, fundamental problems; unsafe or substantially unfit.",
+      "2 — Severe problems dominate; major rework is required.",
+      "3 — Serious weaknesses; important behavior or design is unreliable.",
+      "4 — Meaningful weaknesses materially impede quality.",
+      "5 — Several consequential weaknesses remain.",
+      "6 — Acceptable baseline, but notable improvement is warranted.",
+      "7 — Sound overall with limited, concrete weaknesses.",
+      "8 — Strong; only minor meaningful improvements are available.",
+      "9 — Very strong and well fitted to its context.",
+      "10 — Exceptional; little meaningful improvement is available. Use rarely."
+    ]
+  },
+  "observability_weakness": {
+    "type": "choice",
+    "instructions": "Identify the single most consequential Observability and operability weakness evidenced by the supplied software-change state. Choose no_material_issue when no listed concern is justified. Do not speculate beyond the state.",
+    "criteria": {
+      "no_material_issue": "No material issue is evident from the supplied context.",
+      "failure_visibility": "A credible production failure would not be visible or diagnosable.",
+      "diagnostic_context": "Operational signals lack the context needed to act on them.",
+      "noisy_logging": "Signals are noisy, sensitive, or too low-value to support operation.",
+      "missing_measurement": "A relevant service boundary lacks a useful health or outcome signal."
+    }
+  }
+}
