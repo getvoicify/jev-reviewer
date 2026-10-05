@@ -89,7 +89,9 @@ describe("evaluatorFingerprint", () => {
   });
 
   test("keeps the model and the questions from bleeding into each other", () => {
-    expect(evaluatorFingerprint("a", defaults, {})).not.toBe(evaluatorFingerprint("", defaults, {}));
+    expect(evaluatorFingerprint("a", defaults, {})).not.toBe(
+      evaluatorFingerprint("", defaults, {}),
+    );
     expect(evaluatorFingerprint('jev"', defaults, {})).not.toBe(
       evaluatorFingerprint("jev", defaults, {}),
     );
