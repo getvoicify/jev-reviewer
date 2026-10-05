@@ -3,7 +3,11 @@ import type { GitPort } from "../src/diff/git";
 import { parseGateConfig } from "../src/gate/config";
 import { GATE_COMMENT_MARKER } from "../src/gate/report";
 import { FIXED_TASK, type GateContext, runGate } from "../src/gate/run";
-import { OVERSIZED_REASON, UNREVIEWED_EXCLUDED_REASON } from "../src/gate/verdict";
+import {
+  OVERSIZED_REASON,
+  prTooLargeReason,
+  UNREVIEWED_EXCLUDED_REASON,
+} from "../src/gate/verdict";
 import type { GateCheckRunParams, OverrideQuery } from "../src/github";
 import { JevError, type JevPort } from "../src/jev";
 import { type Evaluation, type MetricAnswers, metricKeys, toEvaluation } from "../src/metrics";
@@ -483,6 +487,123 @@ describe("runGate: diff and flags", () => {
     expect(check.conclusion).toBe("neutral");
     expect(check.title).toContain(OVERSIZED_REASON.slice(0, 40));
     expect(records.uploads).toEqual([]);
+  });
+});
+
+const CAP_400 = '{"version":1,"maxChangedLines":400}';
+
+describe("runGate: changed-line cap", () => {
+  test("goes neutral over the cap without loading a record, calling Jev or saving", async () => {
+    const { check, io, jev, records, github } = await run({
+      config: CAP_400,
+      files: [
+        { path: "src/app.ts", lines: 300 },
+        { path: "src/other.ts", lines: 101 },
+      ],
+    });
+    const reason = prTooLargeReason(401, 400);
+    expect(check.conclusion).toBe("neutral");
+    expect(io.failures).toEqual([reason]);
+    expect(jev.requests).toHaveLength(0);
+    expect(records.reads).toEqual([]);
+    expect(records.uploads).toEqual([]);
+    expect(check.title).toContain(reason.slice(0, 60));
+    expect(check.summary).toContain("Changed lines in reviewed files: 401 · Limit: 400");
+    expect(github.comments.at(-1)?.body).toContain(
+      "Changed lines in reviewed files: 401 · Limit: 400",
+    );
+  });
+
+  test("scores a change exactly at the cap and reports its size", async () => {
+    const { check, jev } = await run({
+      config: CAP_400,
+      files: [
+        { path: "src/app.ts", lines: 300 },
+        { path: "src/other.ts", lines: 100 },
+      ],
+    });
+    expect(jev.requests).toHaveLength(1);
+    expect(check.conclusion).toBe("success");
+    expect(check.summary).toContain("Changed lines in reviewed files: 400 · Limit: 400");
+  });
+
+  test("counts only kept files, so a lockfile-heavy change under the cap still scores", async () => {
+    const { check, jev } = await run({
+      config: CAP_400,
+      files: [
+        { path: "src/app.ts", lines: 50 },
+        { path: "bun.lock", lines: 2000 },
+      ],
+    });
+    expect(jev.requests).toHaveLength(1);
+    expect(jev.requests[0]?.state.diff).not.toContain("bun.lock");
+    expect(check.summary).toContain("Changed lines in reviewed files: 50 · Limit: 400");
+    expect(check.summary).not.toContain("PR too large");
+  });
+
+  test("caps nothing when the config sets no maxChangedLines", async () => {
+    const { check, jev } = await run({
+      config: '{"version":1}',
+      files: [{ path: "src/app.ts", lines: 401 }],
+    });
+    expect(jev.requests).toHaveLength(1);
+    expect(check.conclusion).toBe("success");
+    expect(check.summary).not.toContain("Changed lines");
+  });
+
+  test("lets the owner's override label accept an over-cap change on the labeled run", async () => {
+    const { check, io, jev, records, github } = await run({
+      config: CAP_400,
+      files: [{ path: "src/app.ts", lines: 401 }],
+      approved: true,
+      context: labeledBy(OWNER),
+      settings: OWNER_ACTORS,
+    });
+    expect(check.conclusion).toBe("neutral");
+    expect(io.failures).toEqual([]);
+    expect(io.warnings).toContain(
+      `Neutral gate result accepted by the "jev-gate:override" label: ${prTooLargeReason(401, 400)}`,
+    );
+    expect(github.overrideQueries).toHaveLength(1);
+    expect(jev.requests).toHaveLength(0);
+    expect(records.uploads).toEqual([]);
+    expect(check.summary).toContain(`accepted by ${OWNER}'s override`);
+  });
+
+  test("refuses the override on an over-cap change when the live check does not approve", async () => {
+    const { io } = await run({
+      config: CAP_400,
+      files: [{ path: "src/app.ts", lines: 401 }],
+      approved: false,
+      context: labeledBy(OWNER),
+      settings: OWNER_ACTORS,
+    });
+    expect(io.failures).toEqual([prTooLargeReason(401, 400)]);
+  });
+
+  test("asks for the override again on a later unrelated label, since an over-cap head keeps no record", async () => {
+    const records = sharedRecords();
+    const accepted = await run({
+      records,
+      config: CAP_400,
+      files: [{ path: "src/app.ts", lines: 401 }],
+      approved: true,
+      context: labeledBy(OWNER),
+      settings: OWNER_ACTORS,
+    });
+    expect(accepted.io.failures).toEqual([]);
+    const later = await run({
+      records,
+      config: CAP_400,
+      files: [{ path: "src/app.ts", lines: 401 }],
+      approved: true,
+      context: labeledBy(OWNER, "needs-review"),
+      settings: OWNER_ACTORS,
+    });
+    expect(records.uploads).toEqual([]);
+    expect(later.jev.requests).toHaveLength(0);
+    expect(later.github.overrideQueries).toEqual([]);
+    expect(later.io.failures).toEqual([prTooLargeReason(401, 400)]);
   });
 });
 

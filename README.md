@@ -159,6 +159,18 @@ checkout is the PR head and fails otherwise.
 | `check-name` | `jev-gate` | Name of the posted check run |
 | `comment-author` | `github-actions[bot]` | Login whose gate comment is edited in place |
 
+### Size cap
+
+`maxChangedLines` in the gate config (a positive integer; absent means no cap) caps the added plus
+deleted lines in the files the gate reviews, after exclusions, so lockfiles and generated files do
+not count. A larger PR is decided neutral before anything is loaded or scored: no Jev call and no
+stored record. The owner's override accepts it like any other neutral, on the owner's own `labeled`
+run; because no record is stored, a later label event on that head needs the override again.
+
+```json
+{ "version": 1, "maxChangedLines": 400 }
+```
+
 ### The owner override
 
 To accept a neutral result, the owner applies the label on the current head; it applies only to that
@@ -191,6 +203,11 @@ bun install
 bun run check      # lint (biome) + typecheck (tsc) + tests (bun test, no network needed)
 bun run build      # bundles src/index.ts -> dist/index.js (committed)
 ```
+
+`scripts/drive-gate.ts` runs the gate against a local checkout with the real git port and prints
+what it would post, writing nothing to GitHub. Check out the head first, then
+`bun scripts/drive-gate.ts --repo <checkout> --base main --head <sha> --action opened --config <gate.json>`.
+It uses a fixed stub Jev unless `--real-jev` is passed with `TYPESAFE_API_KEY` set.
 
 `dist/index.js` is committed — the action runtime executes it directly with Node 20, so consumers
 never need Bun. After changing `src/`, run `bun run build` and commit the new bundle.

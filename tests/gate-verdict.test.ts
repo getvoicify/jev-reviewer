@@ -1,7 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import { aggregateEvaluations } from "../src/gate/aggregate";
 import { DEFAULT_GATE_CONFIG, type GateConfig } from "../src/gate/config";
-import { decideVerdict as decideFromParts, UNREVIEWED_EXCLUDED_REASON } from "../src/gate/verdict";
+import {
+  decideVerdict as decideFromParts,
+  prTooLargeReason,
+  UNREVIEWED_EXCLUDED_REASON,
+} from "../src/gate/verdict";
 import { type Evaluation, type MetricEvaluation, type MetricKey, metricKeys } from "../src/metrics";
 
 function evaluation(metrics: Partial<Record<MetricKey, MetricEvaluation>>): Evaluation {
@@ -468,6 +472,14 @@ describe("a stored aggregate re-decided as one partition", () => {
     expect(fromRecord.conclusion).toBe(fromParts.conclusion);
     expect(fromRecord.metrics.map((entry) => entry.status)).toEqual(
       fromParts.metrics.map((entry) => entry.status),
+    );
+  });
+});
+
+describe("prTooLargeReason", () => {
+  test("names the measured lines and the limit and asks for a split", () => {
+    expect(prTooLargeReason(539, 400)).toBe(
+      "PR too large to review: 539 changed lines in reviewed files, over the limit of 400 — split it at a seam",
     );
   });
 });

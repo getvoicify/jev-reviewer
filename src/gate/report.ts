@@ -29,6 +29,7 @@ export type GateReportInput = {
   model: string;
   head: string;
   overriddenBy?: string;
+  size?: { changedLines: number; limit: number };
 };
 
 export type GateCheckOutput = { title: string; summary: string; text: string };
@@ -134,7 +135,10 @@ function renderSummary(input: GateReportInput): string {
     verdict.reasons.length === 0
       ? ["- none"]
       : verdict.reasons.map((reason) => `- ${inline(reason)}`);
-  const provenance = PROVENANCE[`${input.reused}`];
+  const provenance =
+    input.reused === false && verdict.metrics.length === 0
+      ? "Nothing was scored for this push."
+      : PROVENANCE[`${input.reused}`];
   return [
     `**Conclusion:** ${verdict.conclusion}`,
     "",
@@ -150,11 +154,17 @@ function renderSummary(input: GateReportInput): string {
         ]),
     "",
     `Partitions scored: ${input.partitions} · Excluded files: ${input.excludedCount} · Oversized files: ${input.oversizedFiles.length}`,
+    ...(input.size === undefined
+      ? []
+      : [
+          `Changed lines in reviewed files: ${input.size.changedLines} · Limit: ${input.size.limit}`,
+        ]),
     `Model: ${inline(input.model)} · Head: \`${inline(input.head)}\``,
   ].join("\n");
 }
 
 function renderTable(input: GateReportInput): string {
+  if (input.verdict.metrics.length === 0) return "No metrics were scored.";
   const deltas = new Map((input.comparison ?? []).map((entry) => [entry.metric, entry]));
   const rows = input.verdict.metrics.map((entry) =>
     row([
