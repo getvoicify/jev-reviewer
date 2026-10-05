@@ -11,6 +11,7 @@ interface ApiArtifact {
   name: string;
   expired: boolean;
   created_at: string | null;
+  size_in_bytes: number;
   workflow_run?: { id?: number } | null;
 }
 
@@ -95,18 +96,39 @@ describe("ArtifactRecordStore.listArtifacts", () => {
     ]);
   });
 
-  test("maps each artifact to its id, name, uploading run, expiry and creation time", async () => {
+  test("maps each artifact to its id, name, uploading run, expiry, creation time and size", async () => {
     const { octokit } = fakeOctokit([
       {
         id: 7,
         name: "jev-gate-record-abc",
         expired: false,
         created_at: "2026-10-05T10:00:00Z",
+        size_in_bytes: 13_017,
         workflow_run: { id: 42 },
       },
-      { id: 8, name: "jev-gate-record-abc", expired: true, created_at: null, workflow_run: null },
-      { id: 9, name: "jev-gate-record-abc", expired: false, created_at: null, workflow_run: {} },
-      { id: 10, name: "jev-gate-record-abc", expired: false, created_at: null },
+      {
+        id: 8,
+        name: "jev-gate-record-abc",
+        expired: true,
+        created_at: null,
+        size_in_bytes: 1,
+        workflow_run: null,
+      },
+      {
+        id: 9,
+        name: "jev-gate-record-abc",
+        expired: false,
+        created_at: null,
+        size_in_bytes: 0,
+        workflow_run: {},
+      },
+      {
+        id: 10,
+        name: "jev-gate-record-abc",
+        expired: false,
+        created_at: null,
+        size_in_bytes: 70000,
+      },
     ]);
 
     const listed = await new ArtifactRecordStore(
@@ -123,10 +145,32 @@ describe("ArtifactRecordStore.listArtifacts", () => {
         workflowRunId: 42,
         expired: false,
         createdAt: "2026-10-05T10:00:00Z",
+        sizeInBytes: 13_017,
       },
-      { id: 8, name: "jev-gate-record-abc", workflowRunId: null, expired: true, createdAt: null },
-      { id: 9, name: "jev-gate-record-abc", workflowRunId: null, expired: false, createdAt: null },
-      { id: 10, name: "jev-gate-record-abc", workflowRunId: null, expired: false, createdAt: null },
+      {
+        id: 8,
+        name: "jev-gate-record-abc",
+        workflowRunId: null,
+        expired: true,
+        createdAt: null,
+        sizeInBytes: 1,
+      },
+      {
+        id: 9,
+        name: "jev-gate-record-abc",
+        workflowRunId: null,
+        expired: false,
+        createdAt: null,
+        sizeInBytes: 0,
+      },
+      {
+        id: 10,
+        name: "jev-gate-record-abc",
+        workflowRunId: null,
+        expired: false,
+        createdAt: null,
+        sizeInBytes: 70000,
+      },
     ]);
   });
 });

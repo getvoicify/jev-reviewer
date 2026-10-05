@@ -1,12 +1,15 @@
 import { decodeRecord, type EvaluationRecord } from "./record";
 import { recordArtifactName } from "./save";
 
+export const MAX_RECORD_ARTIFACT_BYTES = 65_536;
+
 export interface ListedArtifact {
   id: number;
   name: string;
   workflowRunId: number | null;
   expired: boolean;
   createdAt: string | null;
+  sizeInBytes: number;
 }
 
 export interface WorkflowRunOrigin {

@@ -3,6 +3,7 @@ import { evaluationSchema } from "../src/metrics/schema";
 import {
   type ListedArtifact,
   loadPreviousRecord,
+  MAX_RECORD_ARTIFACT_BYTES,
   type PreviousRecordQuery,
   type RecordReader,
   type WorkflowRunOrigin,
@@ -32,6 +33,7 @@ function artifact(overrides: Partial<ListedArtifact> = {}): ListedArtifact {
     workflowRunId: 10,
     expired: false,
     createdAt: "2026-10-05T10:00:00Z",
+    sizeInBytes: 13_000,
     ...overrides,
   };
 }
@@ -140,6 +142,36 @@ describe("loadPreviousRecord", () => {
     expect(await loadPreviousRecord(stub, QUERY)).toEqual(record("2".repeat(40)));
     expect(lookups).toEqual([20]);
     expect(downloads).toEqual([2]);
+  });
+
+  test("caps a record artifact at 64 KiB, far above the ~13 KB a zipped record reaches", () => {
+    expect(MAX_RECORD_ARTIFACT_BYTES).toBe(65_536);
+  });
+
+  test("accepts an artifact of exactly the maximum size", async () => {
+    const { stub, downloads } = reader({ artifacts: [artifact({ sizeInBytes: 65_536 })] });
+
+    expect(await loadPreviousRecord(stub, QUERY)).toEqual(record("1".repeat(40)));
+    expect(downloads).toEqual([1]);
+  });
+
+  test("skips an artifact one byte over the maximum, without looking up its run or downloading it", async () => {
+    const { stub, lookups, downloads } = reader({
+      artifacts: [
+        artifact({ id: 1, workflowRunId: 10, createdAt: "2026-10-05T09:00:00Z" }),
+        artifact({
+          id: 2,
+          workflowRunId: 20,
+          createdAt: "2026-10-05T09:30:00Z",
+          sizeInBytes: 65_537,
+        }),
+      ],
+      runs: { 10: GATE, 20: GATE },
+    });
+
+    expect(await loadPreviousRecord(stub, QUERY)).toEqual(record("1".repeat(40)));
+    expect(lookups).toEqual([10]);
+    expect(downloads).toEqual([1]);
   });
 
   test("skips an artifact whose creation time is missing or does not parse", async () => {
