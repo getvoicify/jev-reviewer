@@ -7,6 +7,8 @@ import {
 } from "../metrics";
 import { evaluationSchema } from "../metrics/schema";
 
+export type GatedMinimums = Partial<Record<MetricKey, number>>;
+
 export type PartitionEvaluation = { evaluation: Evaluation; changedLines: number };
 
 export type ScoredPart = {
@@ -42,6 +44,18 @@ export function scoredParts(parts: PartitionEvaluation[], key: MetricKey): Score
   });
 }
 
+export type GatedStatus = "fail" | "inconclusive" | "pass";
+
+export function gatedStatus(
+  metric: { score: number; confidence: number },
+  minimum: number,
+  minConfidence: number,
+): GatedStatus {
+  if (!(metric.confidence >= minConfidence)) return "inconclusive";
+  if (!(metric.score >= minimum)) return "fail";
+  return "pass";
+}
+
 export function lowestScore(parts: ScoredPart[]): ScoredPart | undefined {
   return parts.reduce<ScoredPart | undefined>(
     (lowest, candidate) =>
@@ -57,9 +71,10 @@ export function lowestScore(parts: ScoredPart[]): ScoredPart | undefined {
 
 export function aggregateEvaluations(
   parts: PartitionEvaluation[],
-  gatedKeys: readonly MetricKey[],
+  gated: GatedMinimums,
   minConfidence: number,
 ): Evaluation {
+  const gatedKeys = Object.keys(gated);
   const valid = validatePartitions(parts);
 
   const metrics = Object.fromEntries(

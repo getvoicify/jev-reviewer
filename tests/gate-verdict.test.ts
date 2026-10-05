@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { aggregateEvaluations } from "../src/gate/aggregate";
 import { DEFAULT_GATE_CONFIG, type GateConfig } from "../src/gate/config";
 import { decideVerdict as decideFromParts } from "../src/gate/verdict";
 import { type Evaluation, type MetricEvaluation, type MetricKey, metricKeys } from "../src/metrics";
@@ -398,5 +399,41 @@ describe("decideVerdict when no gated metric applies", () => {
       "No gated metric was applicable to a code change",
       "readability scored 4, below the advisory floor of 6",
     ]);
+  });
+});
+
+describe("a stored aggregate re-decided as one partition", () => {
+  const security = (score: number, confidence: number) =>
+    evaluation({ ...healthy, security: scored(score, confidence) });
+  const withoutSecurity = () => {
+    const { security: _omitted, ...rest } = healthy;
+    return evaluation(rest);
+  };
+  const flags = { oversized: false, codeChanged: true };
+
+  test.each([
+    ["fail beside pass", [security(3, 0.9), security(9, 0.9)]],
+    ["inconclusive beside pass", [security(9, 0.9), security(2, 0.2)]],
+    ["fail beside a lower inconclusive", [security(2, 0.95), security(1, 0.2)]],
+    ["all pass", [security(8, 0.95), security(9, 0.9)]],
+    ["not applicable beside pass", [withoutSecurity(), security(8, 0.9)]],
+    ["inconclusive only", [security(8, 0.3), security(1, 0.1)]],
+  ])("reaches the same verdict as its partitions for %s", (_name, evaluations) => {
+    const parts = evaluations.map((each, index) => ({
+      evaluation: each,
+      changedLines: 10 + index * 7,
+    }));
+    const record = aggregateEvaluations(parts, config.gated, config.minConfidence);
+    const total = parts.reduce((sum, part) => sum + part.changedLines, 0);
+    const fromParts = decideFromParts(parts, config, flags);
+    const fromRecord = decideFromParts(
+      [{ evaluation: record, changedLines: total }],
+      config,
+      flags,
+    );
+    expect(fromRecord.conclusion).toBe(fromParts.conclusion);
+    expect(fromRecord.metrics.map((entry) => entry.status)).toEqual(
+      fromParts.metrics.map((entry) => entry.status),
+    );
   });
 });

@@ -1,14 +1,19 @@
 import { describe, expect, test } from "bun:test";
-import { aggregateEvaluations, type PartitionEvaluation } from "../src/gate/aggregate";
+import {
+  aggregateEvaluations,
+  type GatedMinimums,
+  gatedStatus,
+  type PartitionEvaluation,
+} from "../src/gate/aggregate";
 import { type Evaluation, type MetricEvaluation, type MetricKey, metricKeys } from "../src/metrics";
 import { evaluationSchema } from "../src/metrics/schema";
 import currentFixture from "./fixtures/metric-evaluation-current.json";
 import previousFixture from "./fixtures/metric-evaluation-previous.json";
 
-const GATED: readonly MetricKey[] = ["correctness", "security", "reliability", "testQuality"];
+const GATED: GatedMinimums = { correctness: 7, security: 7, reliability: 7, testQuality: 7 };
 
-const aggregate = (parts: PartitionEvaluation[], gatedKeys: readonly MetricKey[] = GATED) =>
-  aggregateEvaluations(parts, gatedKeys, 0.5);
+const aggregate = (parts: PartitionEvaluation[], gated: GatedMinimums = GATED) =>
+  aggregateEvaluations(parts, gated, 0.5);
 
 function evaluation(
   metrics: Partial<Record<MetricKey, MetricEvaluation>>,
@@ -137,7 +142,7 @@ describe("aggregateEvaluations", () => {
       expect(result.metrics.security).toMatchObject({ score: 5, confidence: 0.5 });
     });
 
-    test("take the least confident partition when no partition is confident", () => {
+    test("take the lowest-scoring partition when no partition is confident", () => {
       const result = aggregate(
         [
           { evaluation: evaluation({ security: scored(2, 0.45) }), changedLines: 10 },
@@ -145,13 +150,33 @@ describe("aggregateEvaluations", () => {
         ],
         GATED,
       );
-      expect(result.metrics.security).toMatchObject({ score: 5, confidence: 0.3 });
+      expect(result.metrics.security).toMatchObject({ score: 2, confidence: 0.45 });
     });
 
-    test("break a confidence tie among unconfident partitions by taking the lower score", () => {
+    test("show an uncertain partition over a confident pass, so a stored record cannot read as a pass", () => {
       const result = aggregate(
         [
-          { evaluation: evaluation({ security: scored(5, 0.3) }), changedLines: 10 },
+          { evaluation: evaluation({ security: scored(9, 0.9) }), changedLines: 10 },
+          { evaluation: evaluation({ security: scored(2, 0.2) }), changedLines: 10 },
+        ],
+        GATED,
+      );
+      expect(result.metrics.security).toMatchObject({ score: 2, confidence: 0.2 });
+    });
+
+    test("judge each partition against that metric's own minimum when choosing what to show", () => {
+      const parts = [
+        { evaluation: evaluation({ security: scored(8.5, 0.9) }), changedLines: 10 },
+        { evaluation: evaluation({ security: scored(3, 0.3) }), changedLines: 10 },
+      ];
+      expect(aggregate(parts, { security: 9 }).metrics.security).toMatchObject({ score: 8.5 });
+      expect(aggregate(parts, { security: 7 }).metrics.security).toMatchObject({ score: 3 });
+    });
+
+    test("break a score tie among uncertain partitions by taking the lower confidence", () => {
+      const result = aggregate(
+        [
+          { evaluation: evaluation({ security: scored(4, 0.4) }), changedLines: 10 },
           { evaluation: evaluation({ security: scored(4, 0.3) }), changedLines: 10 },
         ],
         GATED,
@@ -181,8 +206,8 @@ describe("aggregateEvaluations", () => {
         { evaluation: evaluation({ readability: scored(9, 0.9) }), changedLines: 10 },
         { evaluation: evaluation({ readability: scored(3, 0.9) }), changedLines: 30 },
       ];
-      expect(aggregate(parts, ["readability"]).metrics.readability.score).toBe(3);
-      expect(aggregate(parts, []).metrics.readability.score).toBe(4.5);
+      expect(aggregate(parts, { readability: 7 }).metrics.readability.score).toBe(3);
+      expect(aggregate(parts, {}).metrics.readability.score).toBe(4.5);
     });
   });
 
@@ -332,6 +357,18 @@ describe("aggregateEvaluations", () => {
       p("correctness", "b"),
       p("coupling", "c"),
     ]);
+  });
+
+  describe("gatedStatus", () => {
+    test.each([
+      ["a NaN score", Number.NaN, 0.9, "fail"],
+      ["a NaN confidence", 8, Number.NaN, "inconclusive"],
+      ["a confident score at the minimum", 7, 0.5, "pass"],
+      ["a confident score below the minimum", 6.99, 0.5, "fail"],
+      ["a passing score just under minConfidence", 8, 0.49, "inconclusive"],
+    ] as const)("classifies %s as %s", (_name, score, confidence, status) => {
+      expect(gatedStatus({ score, confidence }, 7, 0.5)).toBe(status);
+    });
   });
 
   describe("refuses invalid partitions on entry", () => {

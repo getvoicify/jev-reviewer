@@ -1,6 +1,7 @@
 import { type Evaluation, type MetricKey, metricKeys } from "../metrics";
 import {
   aggregateEvaluations,
+  gatedStatus,
   lowestScore,
   type PartitionEvaluation,
   type ScoredPart,
@@ -41,11 +42,7 @@ export function decideVerdict(
   config: GateConfig,
   flags: VerdictFlags,
 ): Verdict {
-  const aggregate = aggregateEvaluations(
-    parts,
-    Object.keys(config.gated) as MetricKey[],
-    config.minConfidence,
-  );
+  const aggregate = aggregateEvaluations(parts, config.gated, config.minConfidence);
   const assessed = metricKeys.map((key) => {
     const minimum = config.gated[key];
     return minimum === undefined
@@ -87,11 +84,7 @@ function assessGated(
 ): Assessed {
   const base = { metric: key, gated: true, minimum };
   const statusOf = (part: ScoredPart): MetricStatus =>
-    !(part.metric.confidence >= config.minConfidence)
-      ? "inconclusive"
-      : !(part.metric.score >= minimum)
-        ? "fail"
-        : "pass";
+    gatedStatus(part.metric, minimum, config.minConfidence);
 
   for (const status of GATED_SEVERITY) {
     const worst = lowestScore(scored.filter((part) => statusOf(part) === status));
