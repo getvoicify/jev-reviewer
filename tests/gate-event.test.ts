@@ -29,7 +29,24 @@ describe("gateContextFromEvent", () => {
       eventAction: "synchronize",
       triggerLabel: null,
       sender: null,
+      eventAt: null,
     });
+  });
+
+  test("reads the pull request's last update as the time of the event", () => {
+    const context = gateContextFromEvent(
+      event({
+        action: "labeled",
+        pull_request: {
+          number: 12,
+          base: { ref: "main" },
+          head: { sha: HEAD },
+          updated_at: "2026-10-05T09:30:00Z",
+        },
+      }),
+      "pull_request_target",
+    );
+    expect(context.eventAt).toBe("2026-10-05T09:30:00Z");
   });
 
   test("reads the applied label and the sender of a labeled event", () => {

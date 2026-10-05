@@ -13,12 +13,14 @@ const HEAD = "a".repeat(40);
 const MERGE_BASE = "b".repeat(40);
 const PATCH_ID = "c".repeat(40);
 const EVALUATOR = "d".repeat(64);
-const PREFIX = "<!-- jev-gate-record:v1 ";
+const PREFIX = "<!-- jev-gate-record:v2 ";
+const V1_PREFIX = "<!-- jev-gate-record:v1 ";
+const OVERRIDE = { actor: "verygreenboi", labeledAt: "2026-10-05T09:30:00Z" };
 const SUFFIX = " -->";
 
 function record(overrides: Partial<EvaluationRecord> = {}): EvaluationRecord {
   return {
-    version: 1,
+    version: 2,
     head: HEAD,
     mergeBase: MERGE_BASE,
     patchId: PATCH_ID,
@@ -28,8 +30,13 @@ function record(overrides: Partial<EvaluationRecord> = {}): EvaluationRecord {
   };
 }
 
-function lineFor(payload: unknown): string {
-  return `${PREFIX}${Buffer.from(JSON.stringify(payload), "utf8").toString("base64url")}${SUFFIX}`;
+function lineFor(payload: unknown, prefix = PREFIX): string {
+  return `${prefix}${Buffer.from(JSON.stringify(payload), "utf8").toString("base64url")}${SUFFIX}`;
+}
+
+function v1Payload(): Record<string, unknown> {
+  const { version: _version, ...fields } = record();
+  return { version: 1, ...fields };
 }
 
 function withSummary(summary: string): EvaluationRecord {
@@ -51,6 +58,19 @@ describe("encodeRecord", () => {
     const original = record();
 
     expect(decodeRecord(encodeRecord(original))).toEqual(original);
+  });
+
+  test("round-trips a record carrying an accepted override", () => {
+    const original = record({ override: OVERRIDE });
+
+    expect(decodeRecord(encodeRecord(original))).toEqual(original);
+  });
+
+  test("writes version 2 even for a record decoded from version 1", () => {
+    const upgraded = decodeRecord(lineFor(v1Payload(), V1_PREFIX));
+    if (upgraded === null) throw new Error("the v1 record did not decode");
+
+    expect(encodeRecord(upgraded).startsWith(PREFIX)).toBe(true);
   });
 
   test("round-trips a record whose cumulative diff had no patch id", () => {
@@ -162,17 +182,49 @@ describe("decodeRecord", () => {
   test("returns null when a second marker of another version sits beside a valid one", () => {
     const line = encodeRecord(record());
 
-    expect(decodeRecord(`${line}\n<!-- jev-gate-record:v2 abc -->`)).toBeNull();
+    expect(decodeRecord(`${line}\n<!-- jev-gate-record:v1 abc -->`)).toBeNull();
   });
 
   test("returns null for a marker of an unknown version", () => {
-    const line = encodeRecord(record()).replace("jev-gate-record:v1", "jev-gate-record:v2");
+    const line = encodeRecord(record()).replace("jev-gate-record:v2", "jev-gate-record:v3");
 
     expect(decodeRecord(line)).toBeNull();
   });
 
   test("returns null for a payload carrying an unknown record version", () => {
-    expect(decodeRecord(lineFor({ ...record(), version: 2 }))).toBeNull();
+    expect(decodeRecord(lineFor({ ...record(), version: 3 }))).toBeNull();
+  });
+
+  test("reads a version 1 record as one with no override", () => {
+    const decoded = decodeRecord(lineFor(v1Payload(), V1_PREFIX));
+
+    expect(decoded).toEqual(record());
+    expect(decoded !== null && "override" in decoded).toBe(false);
+  });
+
+  test("returns null when the marker version and the payload version disagree", () => {
+    expect(decodeRecord(lineFor(v1Payload()))).toBeNull();
+    expect(decodeRecord(lineFor(record(), V1_PREFIX))).toBeNull();
+  });
+
+  test("returns null for a version 1 record that carries an override", () => {
+    expect(decodeRecord(lineFor({ ...v1Payload(), override: OVERRIDE }, V1_PREFIX))).toBeNull();
+  });
+
+  test.each([
+    ["an empty actor", { ...OVERRIDE, actor: "" }],
+    ["a missing actor", { labeledAt: OVERRIDE.labeledAt }],
+    ["a non-string actor", { ...OVERRIDE, actor: 7 }],
+    ["a labeledAt that is not an ISO time", { ...OVERRIDE, labeledAt: "yesterday" }],
+    ["a missing labeledAt", { actor: OVERRIDE.actor }],
+    ["an unexpected field", { ...OVERRIDE, approved: true }],
+    ["null", null],
+  ])("returns null when the override has %s", (_label, override) => {
+    expect(decodeRecord(lineFor({ ...record(), override }))).toBeNull();
+  });
+
+  test("refuses to encode a record whose override has an empty actor", () => {
+    expect(() => encodeRecord(record({ override: { ...OVERRIDE, actor: "" } }))).toThrow();
   });
 
   test("returns null for non-canonical base64 even when it decodes to a valid record", () => {

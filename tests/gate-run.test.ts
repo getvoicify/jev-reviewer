@@ -94,7 +94,7 @@ function fakeJev(replies: JevReply[] = []) {
 }
 
 function recordText(record: EvaluationRecord): string {
-  return `<!-- jev-gate-record:v1 ${Buffer.from(JSON.stringify(record), "utf8").toString("base64url")} -->`;
+  return `<!-- jev-gate-record:v${record.version} ${Buffer.from(JSON.stringify(record), "utf8").toString("base64url")} -->`;
 }
 
 function fakeRecords(
@@ -130,6 +130,40 @@ function fakeRecords(
     async uploadRecord(name, content) {
       uploads.push({ name, content });
       if (options.uploadError !== undefined) throw options.uploadError;
+    },
+  };
+  return { store, reads, uploads };
+}
+
+function sharedRecords() {
+  const reads: string[] = [];
+  const uploads: { name: string; content: string }[] = [];
+  const store: RecordReader & RecordWriter = {
+    async listArtifacts(_owner, _repo, name): Promise<ListedArtifact[]> {
+      reads.push(`list ${name}`);
+      return uploads.flatMap((upload, id) =>
+        upload.name === name
+          ? [
+              {
+                id,
+                name,
+                workflowRunId: 9,
+                expired: false,
+                createdAt: new Date(Date.UTC(2026, 9, 1, 0, 0, id)).toISOString(),
+                sizeInBytes: 100,
+              },
+            ]
+          : [],
+      );
+    },
+    async workflowRun() {
+      return TRUSTED;
+    },
+    async downloadRecordText(_owner, _repo, artifact) {
+      return uploads[artifact.id]?.content ?? null;
+    },
+    async uploadRecord(name, content) {
+      uploads.push({ name, content });
     },
   };
   return { store, reads, uploads };
@@ -217,13 +251,14 @@ type Scenario = {
   removeError?: unknown;
   context?: Partial<GateContext>;
   settings?: Record<string, unknown>;
+  records?: ReturnType<typeof sharedRecords>;
 };
 
 async function run(scenario: Scenario = {}) {
   const git = fakeGit(scenario.files ?? [{ path: "src/app.ts" }], scenario.checkedOut);
   const log: string[] = [];
   const github = fakeGitHub({ ...scenario, log });
-  const records = fakeRecords(scenario);
+  const records = scenario.records ?? fakeRecords(scenario);
   const jev = fakeJev(scenario.replies);
   const systemOne = jev.port.systemOne.bind(jev.port);
   jev.port.systemOne = (request, options) => {
@@ -269,9 +304,12 @@ function healthyEvaluation(): Evaluation {
   return toEvaluation(answers());
 }
 
-function previousRecord(overrides: Partial<EvaluationRecord> = {}, config: string | null = null) {
+function previousRecord(
+  overrides: Partial<EvaluationRecord> = {},
+  config: string | null = null,
+): EvaluationRecord {
   return {
-    version: 1 as const,
+    version: 2,
     head: BEFORE,
     mergeBase: MERGE_BASE,
     patchId: PATCH_ID,
@@ -529,7 +567,7 @@ describe("runGate: score", () => {
     const { records } = await run();
     const saved = decodeRecord(records.uploads[0]?.content ?? null);
     expect(saved).toEqual({
-      version: 1,
+      version: 2,
       head: HEAD,
       mergeBase: MERGE_BASE,
       patchId: PATCH_ID,
@@ -865,6 +903,164 @@ describe("runGate: exit", () => {
       settings: OWNER_ACTORS,
     });
     expect(io.failures).toHaveLength(1);
+  });
+});
+
+const WITH_JAR = [{ path: "src/app.ts" }, { path: "gradle/wrapper/gradle-wrapper.jar" }];
+const NEUTRAL_FAILURE = `${UNREVIEWED_EXCLUDED_REASON}: 1`;
+const ACCEPTED = { actor: OWNER, labeledAt: "2026-10-05T09:30:00.000Z" };
+
+function lastSaved(records: { uploads: { content: string }[] }) {
+  return decodeRecord(records.uploads.at(-1)?.content ?? null);
+}
+
+describe("runGate: keeping an accepted override on the same head", () => {
+  test("saves the owner's acceptance on the head's record with the actor and the event time", async () => {
+    const { records, io } = await run({
+      files: WITH_JAR,
+      approved: true,
+      context: { ...labeledBy(OWNER), eventAt: "2026-10-05T09:30:00Z" },
+      settings: OWNER_ACTORS,
+    });
+    expect(io.failures).toEqual([]);
+    expect(records.uploads.at(-1)?.name).toBe(recordArtifactName(HEAD));
+    expect(lastSaved(records)?.override).toEqual(ACCEPTED);
+  });
+
+  test("stamps the acceptance with the current time when the event carries none", async () => {
+    const before = Date.now();
+    const { records } = await run({
+      files: WITH_JAR,
+      approved: true,
+      context: labeledBy(OWNER),
+      settings: OWNER_ACTORS,
+    });
+    const labeledAt = Date.parse(lastSaved(records)?.override?.labeledAt ?? "");
+    expect(labeledAt).toBeGreaterThanOrEqual(before);
+    expect(labeledAt).toBeLessThanOrEqual(Date.now());
+  });
+
+  test("re-saves a reused head record with the acceptance", async () => {
+    const { records, jev } = await run({
+      previous: previousRecord({ head: HEAD }),
+      files: WITH_JAR,
+      approved: true,
+      context: { ...labeledBy(OWNER), eventAt: "2026-10-05T09:30:00Z" },
+      settings: OWNER_ACTORS,
+    });
+    expect(jev.requests).toHaveLength(0);
+    expect(lastSaved(records)?.override).toEqual(ACCEPTED);
+  });
+
+  test("keeps the gate passing when an unrelated label is added after the owner's override", async () => {
+    const shared = sharedRecords();
+    await run({
+      records: shared,
+      files: WITH_JAR,
+      approved: true,
+      context: { ...labeledBy(OWNER), eventAt: "2026-10-05T09:30:00Z" },
+      settings: OWNER_ACTORS,
+    });
+    const later = await run({
+      records: shared,
+      files: WITH_JAR,
+      approved: true,
+      context: labeledBy("claude-agent[bot]", "needs-review"),
+      settings: OWNER_ACTORS,
+    });
+    expect(later.io.failures).toEqual([]);
+    expect(later.jev.requests).toHaveLength(0);
+    expect(later.github.overrideQueries).toHaveLength(1);
+    expect(lastSaved(shared)?.override).toEqual(ACCEPTED);
+    for (const text of [later.check.summary, later.github.comments.at(-1)?.body ?? ""]) {
+      expect(text).toContain(`Neutral result accepted by ${OWNER}'s override on head \`${HEAD}\``);
+    }
+  });
+
+  test("fails once the override label is removed, and still fails on a later unrelated label", async () => {
+    const shared = sharedRecords();
+    await run({
+      records: shared,
+      files: WITH_JAR,
+      approved: true,
+      context: labeledBy(OWNER),
+      settings: OWNER_ACTORS,
+    });
+    const removal = await run({
+      records: shared,
+      files: WITH_JAR,
+      approved: false,
+      context: { ...labeledBy(OWNER), eventAction: "unlabeled" },
+      settings: OWNER_ACTORS,
+    });
+    expect(removal.io.failures).toEqual([NEUTRAL_FAILURE]);
+    expect(lastSaved(shared)).not.toBeNull();
+    expect(lastSaved(shared)?.override).toBeUndefined();
+    const later = await run({
+      records: shared,
+      files: WITH_JAR,
+      approved: true,
+      context: labeledBy("claude-agent[bot]", "needs-review"),
+      settings: OWNER_ACTORS,
+    });
+    expect(later.io.failures).toEqual([NEUTRAL_FAILURE]);
+    expect(later.github.overrideQueries).toEqual([]);
+  });
+
+  test("never carries a previous head's override onto a new head reusing its evaluation", async () => {
+    const { io, jev, github, records } = await run({
+      previous: previousRecord({ override: ACCEPTED }),
+      files: WITH_JAR,
+      approved: true,
+      settings: OWNER_ACTORS,
+    });
+    expect(jev.requests).toHaveLength(0);
+    expect(io.failures).toEqual([NEUTRAL_FAILURE]);
+    expect(github.overrideQueries).toEqual([]);
+    expect(lastSaved(records)?.override).toBeUndefined();
+  });
+
+  test("ignores a stored override when the live check does not approve, and saves the head's record without it", async () => {
+    const { io, github, records } = await run({
+      previous: previousRecord({ head: HEAD, override: ACCEPTED }),
+      files: WITH_JAR,
+      approved: false,
+      context: labeledBy("claude-agent[bot]", "needs-review"),
+      settings: OWNER_ACTORS,
+    });
+    expect(io.failures).toEqual([NEUTRAL_FAILURE]);
+    expect(github.overrideQueries).toHaveLength(1);
+    expect(lastSaved(records)).not.toBeNull();
+    expect(lastSaved(records)?.override).toBeUndefined();
+  });
+
+  test("never honours a stored override on a reopened run, even when the label could not be removed", async () => {
+    const { io, records } = await run({
+      previous: previousRecord({ head: HEAD, override: ACCEPTED }),
+      files: WITH_JAR,
+      approved: true,
+      removeError: Object.assign(new Error("Resource not accessible"), { status: 403 }),
+      context: { eventAction: "reopened" },
+      settings: OWNER_ACTORS,
+    });
+    expect(io.failures).toEqual([NEUTRAL_FAILURE]);
+    expect(lastSaved(records)?.override).toBeUndefined();
+  });
+
+  test("never overrides a failure, even when the head's record carries an accepted override", async () => {
+    const { io, github } = await run({
+      previous: previousRecord({
+        head: HEAD,
+        override: ACCEPTED,
+        evaluation: toEvaluation(failing()),
+      }),
+      approved: true,
+      context: labeledBy("claude-agent[bot]", "needs-review"),
+      settings: OWNER_ACTORS,
+    });
+    expect(io.failures).toHaveLength(1);
+    expect(io.failures).not.toEqual([NEUTRAL_FAILURE]);
+    expect(github.overrideQueries).toEqual([]);
   });
 });
 

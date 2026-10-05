@@ -22,9 +22,11 @@ export function planEvaluation(
     return { kind: "score", previousEvaluation: null };
   }
   if (previous.patchId === current.patchId) {
+    const { override, ...rest } = previous;
+    const carried = previous.head === current.head && override !== undefined ? { override } : {};
     return {
       kind: "reuse",
-      record: { ...previous, head: current.head, mergeBase: current.mergeBase },
+      record: { ...rest, ...carried, head: current.head, mergeBase: current.mergeBase },
     };
   }
   return { kind: "score", previousEvaluation: previous.evaluation };

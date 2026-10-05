@@ -28,6 +28,7 @@ export type GateReportInput = {
   advisoryFloor: number;
   model: string;
   head: string;
+  overriddenBy?: string;
 };
 
 export type GateCheckOutput = { title: string; summary: string; text: string };
@@ -141,6 +142,12 @@ function renderSummary(input: GateReportInput): string {
     ...reasons,
     "",
     provenance,
+    ...(input.overriddenBy === undefined
+      ? []
+      : [
+          "",
+          `Neutral result accepted by ${inline(input.overriddenBy)}'s override on head \`${inline(input.head)}\`.`,
+        ]),
     "",
     `Partitions scored: ${input.partitions} · Excluded files: ${input.excludedCount} · Oversized files: ${input.oversizedFiles.length}`,
     `Model: ${inline(input.model)} · Head: \`${inline(input.head)}\``,

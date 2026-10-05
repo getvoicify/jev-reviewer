@@ -12,7 +12,12 @@ interface PullRequestPayload {
   before?: unknown;
   label?: { name?: unknown } | null;
   sender?: { login?: unknown } | null;
-  pull_request?: { number?: unknown; base?: { ref?: unknown }; head?: { sha?: unknown } };
+  pull_request?: {
+    number?: unknown;
+    base?: { ref?: unknown };
+    head?: { sha?: unknown };
+    updated_at?: unknown;
+  };
 }
 
 export function gateContextFromEvent(event: GateEvent, trustedEvent: string): GateContext {
@@ -41,6 +46,7 @@ export function gateContextFromEvent(event: GateEvent, trustedEvent: string): Ga
     eventAction,
     triggerLabel: stringOrNull(payload.label?.name),
     sender: stringOrNull(payload.sender?.login),
+    eventAt: stringOrNull(pull?.updated_at),
   };
 }
 

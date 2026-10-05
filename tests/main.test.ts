@@ -118,6 +118,7 @@ describe("main: mode dispatch", () => {
       eventAction: "synchronize",
       triggerLabel: null,
       sender: null,
+      eventAt: null,
     });
   });
 
