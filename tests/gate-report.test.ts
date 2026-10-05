@@ -98,6 +98,8 @@ const failing = verdict(
   },
 );
 
+const LONE_SURROGATE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
+
 function splitRow(line: string): string[] {
   return line
     .slice(1, -1)
@@ -172,6 +174,25 @@ describe("renderCheckOutput title", () => {
     );
     expect(title).toBe("Jev gate: failure — a b c");
   });
+
+  test("never splits an emoji that straddles the cut", () => {
+    const reason = `${"x".repeat(78)}${"😀".repeat(10)}`;
+    const { title } = renderCheckOutput(
+      input({ verdict: verdict({}, { conclusion: "failure", reasons: [reason] }) }),
+    );
+    expect(title).not.toMatch(LONE_SURROGATE);
+    expect(Array.from(title)).toHaveLength(100);
+    expect(title.endsWith("😀…")).toBe(true);
+  });
+
+  test("keeps a title of 100 code points whole even when it is longer in UTF-16 units", () => {
+    const prefix = "Jev gate: failure — ";
+    const reason = "😀".repeat(100 - prefix.length);
+    const { title } = renderCheckOutput(
+      input({ verdict: verdict({}, { conclusion: "failure", reasons: [reason] }) }),
+    );
+    expect(title).toBe(prefix + reason);
+  });
 });
 
 describe("renderCheckOutput summary", () => {
@@ -230,7 +251,7 @@ describe("renderCheckOutput text table", () => {
     const row = rowFor(renderCheckOutput(input({ verdict: failing })).text, "security");
     expect(row).toMatchObject({
       Gated: "✓",
-      Score: "5.2",
+      Score: "5.20",
       Confidence: "0.81",
       Minimum: "7",
       Status: "failed",
@@ -241,7 +262,7 @@ describe("renderCheckOutput text table", () => {
     const row = rowFor(renderCheckOutput(input({ verdict: failing })).text, "readability");
     expect(row).toMatchObject({
       Gated: "",
-      Score: "4.3",
+      Score: "4.25",
       Confidence: "0.78",
       Minimum: "6 (floor)",
       Status: "below floor",
@@ -253,6 +274,12 @@ describe("renderCheckOutput text table", () => {
     const na = rowFor(renderCheckOutput(input({ verdict: failing })).text, "observability");
     expect(row.Score).not.toBe("—");
     expect(na).toMatchObject({ Score: "—", Confidence: "—", Status: "not applicable" });
+  });
+
+  test("shows a score just under the floor with two decimals so it cannot read as the floor", () => {
+    const nearFloor = verdict({ readability: { score: 5.96, confidence: 0.9, status: "warn" } });
+    const row = rowFor(renderCheckOutput(input({ verdict: nearFloor })).text, "readability");
+    expect(row).toMatchObject({ Score: "5.96", Minimum: "6 (floor)", Status: "below floor" });
   });
 
   test("names passed and inconclusive statuses as words", () => {
@@ -275,17 +302,17 @@ describe("renderCheckOutput text table", () => {
     expect(rowFor(text, "security").Δ).toBe("↓ -0.8");
   });
 
-  test("shows a dot for an unchanged metric and for one missing from the comparison", () => {
+  test("shows a dot for an unchanged metric and a dash for one missing from the comparison", () => {
     const { text } = renderCheckOutput(
       input({ verdict: failing, comparison: [entry("security", 0.5, "unchanged")] }),
     );
     expect(rowFor(text, "security").Δ).toBe("·");
-    expect(rowFor(text, "correctness").Δ).toBe("·");
+    expect(rowFor(text, "correctness").Δ).toBe("—");
   });
 
-  test("shows a dot for every metric when there is no previous evaluation", () => {
+  test("shows a dash for every metric when there is no previous evaluation", () => {
     const { text } = renderCheckOutput(input({ verdict: failing }));
-    expect(new Set(tableRows(text).map((cells) => cells[6]))).toEqual(new Set(["·"]));
+    expect(new Set(tableRows(text).map((cells) => cells[6]))).toEqual(new Set(["—"]));
   });
 });
 
@@ -301,6 +328,45 @@ describe("markdownCell", () => {
 
   test("neutralises an HTML comment opener", () => {
     expect(markdownCell("x<!--y")).toBe("x&lt;!--y");
+  });
+
+  test("escapes a backslash before a pipe so an escaped pipe in the input cannot end the cell", () => {
+    expect(markdownCell("a\\|b")).toBe("a\\\\\\|b");
+    expect(splitRow(`| ${markdownCell("a\\|b")} | c |`)).toHaveLength(2);
+  });
+
+  test("escapes backticks, angle brackets and mentions", () => {
+    expect(markdownCell("`x` <b> @team")).toBe("&#96;x&#96; &lt;b> &#64;team");
+  });
+});
+
+describe("hostile model name", () => {
+  const probe = "x` @getvoicify/admins <img src=https://evil/p.gif> <details>";
+  const rendered = input({ verdict: failing, model: probe });
+  const surfaces = {
+    summary: renderCheckOutput(rendered).summary,
+    comment: renderComment(rendered),
+    footer: renderComment(rendered).trimEnd().split("\n").at(-1) ?? "",
+  };
+
+  for (const [name, surface] of Object.entries(surfaces)) {
+    test(`leaves no live mention in the ${name}`, () => {
+      expect(surface).not.toMatch(/@\w/);
+    });
+
+    test(`leaves no raw HTML tag in the ${name}`, () => {
+      expect(surface).not.toMatch(/<img|<details/i);
+    });
+
+    test(`leaves no unbalanced code span in the ${name}`, () => {
+      for (const line of surface.split("\n")) {
+        expect((line.match(/`/g) ?? []).length % 2).toBe(0);
+      }
+    });
+  }
+
+  test("still names the model in the footer", () => {
+    expect(surfaces.footer).toContain("getvoicify/admins");
   });
 });
 
@@ -494,7 +560,7 @@ describe("buildGateAnnotations", () => {
 
   test("places every annotation on the repository root at line 1", () => {
     for (const annotation of buildGateAnnotations(failing, issues)) {
-      expect(annotation).toMatchObject({ path: ".", start_line: 1, end_line: 1 });
+      expect(annotation).toMatchObject({ path: ".github", start_line: 1, end_line: 1 });
     }
   });
 
@@ -521,6 +587,21 @@ describe("buildGateAnnotations", () => {
       `${labelOf("correctness")} (below floor)`,
       `${labelOf("testQuality")} (below floor)`,
     ]);
+  });
+
+  test("caps a message at 60,000 code points ending in an ellipsis", () => {
+    const long = evaluation({ security: withIssues(issue("d", "😀".repeat(70_000))) });
+    const message = buildGateAnnotations(failing, long)[0]?.message ?? "";
+    expect(Array.from(message)).toHaveLength(60_000);
+    expect(message.endsWith("😀…")).toBe(true);
+    expect(message).not.toMatch(LONE_SURROGATE);
+  });
+
+  test("keeps a message of exactly 60,000 code points whole", () => {
+    const reason = "security scored 5.2, below the minimum of 7. ";
+    const fill = "😀".repeat(60_000 - reason.length);
+    const exact = evaluation({ security: withIssues(issue("d", fill)) });
+    expect(buildGateAnnotations(failing, exact)[0]?.message).toBe(reason + fill);
   });
 
   test("describes the status when the verdict carries no reason for the metric", () => {
