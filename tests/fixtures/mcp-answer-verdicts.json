@@ -1,0 +1,192 @@
+[
+  {
+    "name": "a score answer with no confidence",
+    "answer": "correctness_score",
+    "unset": "confidence",
+    "mcpAccepts": false
+  },
+  {
+    "name": "a noul answer with no noul value",
+    "answer": "correctness_applicable",
+    "unset": "noul",
+    "mcpAccepts": false
+  },
+  {
+    "name": "a score of 42",
+    "answer": "correctness_score",
+    "set": {
+      "score": 42
+    },
+    "mcpAccepts": false
+  },
+  {
+    "name": "a score given as the string \"7\"",
+    "answer": "correctness_score",
+    "set": {
+      "score": "7"
+    },
+    "mcpAccepts": false
+  },
+  {
+    "name": "a score at the top level, 9",
+    "answer": "correctness_score",
+    "set": {
+      "score": 9
+    },
+    "mcpAccepts": true
+  },
+  {
+    "name": "a score at the bottom level, 0",
+    "answer": "correctness_score",
+    "set": {
+      "score": 0
+    },
+    "mcpAccepts": true
+  },
+  {
+    "name": "a score just above the top level",
+    "answer": "correctness_score",
+    "set": {
+      "score": 9.01
+    },
+    "mcpAccepts": false
+  },
+  {
+    "name": "a negative score",
+    "answer": "correctness_score",
+    "set": {
+      "score": -0.01
+    },
+    "mcpAccepts": false
+  },
+  {
+    "name": "a score confidence above one",
+    "answer": "correctness_score",
+    "set": {
+      "confidence": 1.01
+    },
+    "mcpAccepts": false
+  },
+  {
+    "name": "a score with no legend",
+    "answer": "correctness_score",
+    "unset": "legend",
+    "mcpAccepts": false
+  },
+  {
+    "name": "a score legend with a non-text level",
+    "answer": "correctness_score",
+    "set": {
+      "legend": {
+        "0": 1
+      }
+    },
+    "mcpAccepts": false
+  },
+  {
+    "name": "a score with no probabilities",
+    "answer": "correctness_score",
+    "unset": "probabilities",
+    "mcpAccepts": false
+  },
+  {
+    "name": "a noul of exactly one",
+    "answer": "correctness_applicable",
+    "set": {
+      "noul": 1
+    },
+    "mcpAccepts": true
+  },
+  {
+    "name": "a noul above one",
+    "answer": "correctness_applicable",
+    "set": {
+      "noul": 1.2
+    },
+    "mcpAccepts": false
+  },
+  {
+    "name": "a negative noul",
+    "answer": "correctness_applicable",
+    "set": {
+      "noul": -0.1
+    },
+    "mcpAccepts": false
+  },
+  {
+    "name": "a choice of an unknown label",
+    "answer": "correctness_weakness",
+    "set": {
+      "choice": "not_a_listed_weakness"
+    },
+    "mcpAccepts": true
+  },
+  {
+    "name": "a choice with no confidence",
+    "answer": "correctness_weakness",
+    "unset": "confidence",
+    "mcpAccepts": false
+  },
+  {
+    "name": "a choice confidence above one",
+    "answer": "correctness_weakness",
+    "set": {
+      "confidence": 1.5
+    },
+    "mcpAccepts": false
+  },
+  {
+    "name": "a choice probability above one",
+    "answer": "correctness_weakness",
+    "set": {
+      "probabilities": {
+        "edge_case": 2
+      }
+    },
+    "mcpAccepts": false
+  },
+  {
+    "name": "a choice given as a number",
+    "answer": "correctness_weakness",
+    "set": {
+      "choice": 3
+    },
+    "mcpAccepts": false
+  },
+  {
+    "name": "an answer of an unknown type",
+    "answer": "correctness_weakness",
+    "set": {
+      "type": "ranking"
+    },
+    "mcpAccepts": false
+  },
+  {
+    "name": "an answer with an extra field",
+    "answer": "correctness_score",
+    "set": {
+      "rationale": "extra"
+    },
+    "mcpAccepts": true
+  },
+  {
+    "name": "a response with no usage",
+    "unsetTop": "usage",
+    "mcpAccepts": false
+  },
+  {
+    "name": "a response with fractional token usage",
+    "set": {
+      "usage": {
+        "input_tokens": 1.5,
+        "output_tokens": 1
+      }
+    },
+    "mcpAccepts": false
+  },
+  {
+    "name": "a response with no model",
+    "unsetTop": "model",
+    "mcpAccepts": false
+  }
+]

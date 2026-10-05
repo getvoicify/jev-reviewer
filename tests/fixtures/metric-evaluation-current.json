@@ -1,0 +1,312 @@
+{
+  "metrics": {
+    "correctness": {
+      "applicable": true,
+      "score": 7.2,
+      "confidence": 0.77,
+      "summary": "Correctness and requirement fit is strong based on the supplied change context."
+    },
+    "cognitiveComplexity": {
+      "applicable": true,
+      "score": 5.2,
+      "confidence": 0.88,
+      "summary": "Cognitive complexity is acceptable but improvable based on the supplied change context.",
+      "issues": [
+        {
+          "severity": "low",
+          "description": "Control flow is harder to follow than the problem requires.",
+          "suggestion": "Simplify the hardest control or data flow while preserving a cohesive implementation."
+        }
+      ]
+    },
+    "readability": {
+      "applicable": true,
+      "score": 7.8,
+      "confidence": 0.77,
+      "summary": "Readability and intent is strong based on the supplied change context.",
+      "issues": [
+        {
+          "severity": "low",
+          "description": "Names do not communicate intent precisely enough.",
+          "suggestion": "Make intent explicit through clearer naming, flow, or responsibility boundaries."
+        }
+      ]
+    },
+    "modularity": {
+      "applicable": true,
+      "score": 8.4,
+      "confidence": 0.88,
+      "summary": "Modularity and cohesion is strong based on the supplied change context."
+    },
+    "coupling": {
+      "applicable": true,
+      "score": 4.3,
+      "confidence": 0.77,
+      "summary": "Coupling and dependency quality is meaningfully weak based on the supplied change context."
+    },
+    "changeability": {
+      "applicable": false
+    },
+    "abstractionQuality": {
+      "applicable": true,
+      "score": 8.4,
+      "confidence": 0.77,
+      "summary": "Abstraction and API design is strong based on the supplied change context."
+    },
+    "projectStructure": {
+      "applicable": true,
+      "score": 5.6,
+      "confidence": 0.88,
+      "summary": "Project and file structure is acceptable but improvable based on the supplied change context.",
+      "issues": [
+        {
+          "severity": "low",
+          "description": "Code is located where future maintainers are unlikely to look for it.",
+          "suggestion": "Move the affected code toward a predictable, cohesive location without splitting it mechanically."
+        }
+      ]
+    },
+    "duplication": {
+      "applicable": true,
+      "score": 9.4,
+      "confidence": 0.77,
+      "summary": "Duplication and reuse is strong based on the supplied change context."
+    },
+    "maintainability": {
+      "applicable": true,
+      "score": 6.9,
+      "confidence": 0.58,
+      "summary": "Maintainability is acceptable but improvable based on the supplied change context.",
+      "issues": [
+        {
+          "severity": "low",
+          "description": "The implementation has a high recurring cost to understand.",
+          "suggestion": "Reduce the highest recurring cost of understanding, changing, debugging, or testing this code."
+        }
+      ]
+    },
+    "testQuality": {
+      "applicable": true,
+      "score": 3,
+      "confidence": 0.77,
+      "summary": "Testability and test quality is seriously weak based on the supplied change context.",
+      "issues": [
+        {
+          "severity": "high",
+          "description": "Important changed behavior lacks meaningful regression coverage.",
+          "suggestion": "Add or improve the smallest behavior-focused test that protects the important risk without overspecifying implementation."
+        }
+      ]
+    },
+    "reliability": {
+      "applicable": true,
+      "score": 8.9,
+      "confidence": 0.88,
+      "summary": "Reliability and error handling is strong based on the supplied change context."
+    },
+    "security": {
+      "applicable": true,
+      "score": 6,
+      "confidence": 0.77,
+      "summary": "Security is acceptable but improvable based on the supplied change context."
+    },
+    "consistency": {
+      "applicable": true,
+      "score": 7.4,
+      "confidence": 0.88,
+      "summary": "Consistency and conventions is strong based on the supplied change context.",
+      "issues": [
+        {
+          "severity": "low",
+          "description": "The change diverges from an established repository pattern without clear benefit.",
+          "suggestion": "Align the change with the repository's established pattern unless a documented constraint justifies the difference."
+        }
+      ]
+    },
+    "documentation": {
+      "applicable": true,
+      "score": 5.4,
+      "confidence": 0.77,
+      "summary": "Documentation and explainability is acceptable but improvable based on the supplied change context.",
+      "issues": [
+        {
+          "severity": "low",
+          "description": "A public or changed contract is not documented clearly enough.",
+          "suggestion": "Document the non-obvious contract, constraint, configuration, or rationale at the narrowest useful location."
+        }
+      ]
+    },
+    "performance": {
+      "applicable": true,
+      "score": 4.3,
+      "confidence": 0.64,
+      "summary": "Performance and resource efficiency is meaningfully weak based on the supplied change context.",
+      "issues": [
+        {
+          "severity": "medium",
+          "description": "The relevant path has avoidable algorithmic cost.",
+          "suggestion": "Optimize only the evidenced hot path or waste, keeping the design proportionate."
+        }
+      ]
+    },
+    "scalability": {
+      "applicable": false
+    },
+    "compatibility": {
+      "applicable": true,
+      "score": 6.2,
+      "confidence": 0.64,
+      "summary": "Compatibility and API stability is acceptable but improvable based on the supplied change context.",
+      "issues": [
+        {
+          "severity": "low",
+          "description": "The change appears to break an existing public or integration contract.",
+          "suggestion": "Preserve the affected contract or provide an explicit, tested migration path."
+        }
+      ]
+    },
+    "observability": {
+      "applicable": false
+    }
+  },
+  "priorities": [
+    {
+      "metric": "testQuality",
+      "severity": "high",
+      "reason": "Important changed behavior lacks meaningful regression coverage."
+    },
+    {
+      "metric": "coupling",
+      "severity": "medium",
+      "reason": "Coupling and dependency quality is meaningfully weak based on the supplied change context."
+    },
+    {
+      "metric": "performance",
+      "severity": "medium",
+      "reason": "The relevant path has avoidable algorithmic cost."
+    },
+    {
+      "metric": "cognitiveComplexity",
+      "severity": "low",
+      "reason": "Control flow is harder to follow than the problem requires."
+    },
+    {
+      "metric": "security",
+      "severity": "low",
+      "reason": "Security is acceptable but improvable based on the supplied change context."
+    }
+  ],
+  "improvements": [
+    "Correctness and requirement fit: 6 → 7.2",
+    "Maintainability: 5.9 → 6.9",
+    "Reliability and error handling: 7.2 → 8.9"
+  ],
+  "regressions": ["Project and file structure: 6.5 → 5.6", "Testability and test quality: 4.1 → 3"],
+  "comparison": [
+    {
+      "metric": "correctness",
+      "previousScore": 6,
+      "currentScore": 7.2,
+      "delta": 1.2,
+      "direction": "improved"
+    },
+    {
+      "metric": "cognitiveComplexity",
+      "previousScore": 4.5,
+      "currentScore": 5.2,
+      "delta": 0.7,
+      "direction": "unchanged"
+    },
+    {
+      "metric": "readability",
+      "previousScore": 7.1,
+      "currentScore": 7.8,
+      "delta": 0.7,
+      "direction": "unchanged"
+    },
+    {
+      "metric": "modularity",
+      "previousScore": 8.4,
+      "currentScore": 8.4,
+      "delta": 0,
+      "direction": "unchanged"
+    },
+    {
+      "metric": "coupling",
+      "previousScore": 5,
+      "currentScore": 4.3,
+      "delta": -0.7,
+      "direction": "unchanged"
+    },
+    {
+      "metric": "abstractionQuality",
+      "previousScore": 7.7,
+      "currentScore": 8.4,
+      "delta": 0.7,
+      "direction": "unchanged"
+    },
+    {
+      "metric": "projectStructure",
+      "previousScore": 6.5,
+      "currentScore": 5.6,
+      "delta": -0.9,
+      "direction": "regressed"
+    },
+    {
+      "metric": "duplication",
+      "previousScore": 9.1,
+      "currentScore": 9.4,
+      "delta": 0.3,
+      "direction": "unchanged"
+    },
+    {
+      "metric": "maintainability",
+      "previousScore": 5.9,
+      "currentScore": 6.9,
+      "delta": 1,
+      "direction": "improved"
+    },
+    {
+      "metric": "testQuality",
+      "previousScore": 4.1,
+      "currentScore": 3,
+      "delta": -1.1,
+      "direction": "regressed"
+    },
+    {
+      "metric": "reliability",
+      "previousScore": 7.2,
+      "currentScore": 8.9,
+      "delta": 1.7,
+      "direction": "improved"
+    },
+    {
+      "metric": "security",
+      "previousScore": 6.7,
+      "currentScore": 6,
+      "delta": -0.7,
+      "direction": "unchanged"
+    },
+    {
+      "metric": "consistency",
+      "previousScore": 8.1,
+      "currentScore": 7.4,
+      "delta": -0.7,
+      "direction": "unchanged"
+    },
+    {
+      "metric": "documentation",
+      "previousScore": 5.4,
+      "currentScore": 5.4,
+      "delta": 0,
+      "direction": "unchanged"
+    },
+    {
+      "metric": "performance",
+      "previousScore": 4.3,
+      "currentScore": 4.3,
+      "delta": 0,
+      "direction": "unchanged"
+    }
+  ]
+}

@@ -1,0 +1,192 @@
+{
+  "metrics": {
+    "correctness": {
+      "applicable": true,
+      "score": 6,
+      "confidence": 0.83,
+      "summary": "Correctness and requirement fit is acceptable but improvable based on the supplied change context."
+    },
+    "cognitiveComplexity": {
+      "applicable": true,
+      "score": 4.5,
+      "confidence": 0.83,
+      "summary": "Cognitive complexity is meaningfully weak based on the supplied change context.",
+      "issues": [
+        {
+          "severity": "medium",
+          "description": "Control flow is harder to follow than the problem requires.",
+          "suggestion": "Simplify the hardest control or data flow while preserving a cohesive implementation."
+        }
+      ]
+    },
+    "readability": {
+      "applicable": true,
+      "score": 7.1,
+      "confidence": 0.83,
+      "summary": "Readability and intent is strong based on the supplied change context.",
+      "issues": [
+        {
+          "severity": "low",
+          "description": "Names do not communicate intent precisely enough.",
+          "suggestion": "Make intent explicit through clearer naming, flow, or responsibility boundaries."
+        }
+      ]
+    },
+    "modularity": {
+      "applicable": true,
+      "score": 8.4,
+      "confidence": 0.83,
+      "summary": "Modularity and cohesion is strong based on the supplied change context."
+    },
+    "coupling": {
+      "applicable": true,
+      "score": 5,
+      "confidence": 0.83,
+      "summary": "Coupling and dependency quality is meaningfully weak based on the supplied change context.",
+      "issues": [
+        {
+          "severity": "medium",
+          "description": "A dependency is broader or less necessary than the behavior requires.",
+          "suggestion": "Remove or invert the dependency that most strongly leaks details or makes change unsafe."
+        }
+      ]
+    },
+    "changeability": {
+      "applicable": true,
+      "score": 3.2,
+      "confidence": 0.83,
+      "summary": "Changeability and change amplification is meaningfully weak based on the supplied change context.",
+      "issues": [
+        {
+          "severity": "medium",
+          "description": "A domain rule or decision is scattered across multiple locations.",
+          "suggestion": "Centralize the relevant knowledge or boundary so the next conceptual change has a small, predictable edit surface."
+        }
+      ]
+    },
+    "abstractionQuality": {
+      "applicable": true,
+      "score": 7.7,
+      "confidence": 0.83,
+      "summary": "Abstraction and API design is strong based on the supplied change context."
+    },
+    "projectStructure": {
+      "applicable": true,
+      "score": 6.5,
+      "confidence": 0.83,
+      "summary": "Project and file structure is acceptable but improvable based on the supplied change context.",
+      "issues": [
+        {
+          "severity": "low",
+          "description": "Code is located where future maintainers are unlikely to look for it.",
+          "suggestion": "Move the affected code toward a predictable, cohesive location without splitting it mechanically."
+        }
+      ]
+    },
+    "duplication": {
+      "applicable": true,
+      "score": 9.1,
+      "confidence": 0.83,
+      "summary": "Duplication and reuse is strong based on the supplied change context."
+    },
+    "maintainability": {
+      "applicable": true,
+      "score": 5.9,
+      "confidence": 0.55,
+      "summary": "Maintainability is acceptable but improvable based on the supplied change context."
+    },
+    "testQuality": {
+      "applicable": true,
+      "score": 4.1,
+      "confidence": 0.83,
+      "summary": "Testability and test quality is meaningfully weak based on the supplied change context.",
+      "issues": [
+        {
+          "severity": "medium",
+          "description": "Important changed behavior lacks meaningful regression coverage.",
+          "suggestion": "Add or improve the smallest behavior-focused test that protects the important risk without overspecifying implementation."
+        }
+      ]
+    },
+    "reliability": {
+      "applicable": true,
+      "score": 7.2,
+      "confidence": 0.83,
+      "summary": "Reliability and error handling is strong based on the supplied change context.",
+      "issues": [
+        {
+          "severity": "low",
+          "description": "Errors are swallowed, distorted, or propagated without useful boundaries.",
+          "suggestion": "Handle the most credible failure path deliberately, including cleanup and propagation where relevant."
+        }
+      ]
+    },
+    "security": {
+      "applicable": true,
+      "score": 6.7,
+      "confidence": 0.83,
+      "summary": "Security is acceptable but improvable based on the supplied change context."
+    },
+    "consistency": {
+      "applicable": true,
+      "score": 8.1,
+      "confidence": 0.83,
+      "summary": "Consistency and conventions is strong based on the supplied change context."
+    },
+    "documentation": {
+      "applicable": true,
+      "score": 5.4,
+      "confidence": 0.83,
+      "summary": "Documentation and explainability is acceptable but improvable based on the supplied change context.",
+      "issues": [
+        {
+          "severity": "low",
+          "description": "A public or changed contract is not documented clearly enough.",
+          "suggestion": "Document the non-obvious contract, constraint, configuration, or rationale at the narrowest useful location."
+        }
+      ]
+    },
+    "performance": {
+      "applicable": true,
+      "score": 4.3,
+      "confidence": 0.71,
+      "summary": "Performance and resource efficiency is meaningfully weak based on the supplied change context."
+    },
+    "scalability": {
+      "applicable": false
+    },
+    "compatibility": {
+      "applicable": false
+    },
+    "observability": {
+      "applicable": false
+    }
+  },
+  "priorities": [
+    {
+      "metric": "changeability",
+      "severity": "medium",
+      "reason": "A domain rule or decision is scattered across multiple locations."
+    },
+    {
+      "metric": "testQuality",
+      "severity": "medium",
+      "reason": "Important changed behavior lacks meaningful regression coverage."
+    },
+    {
+      "metric": "cognitiveComplexity",
+      "severity": "medium",
+      "reason": "Control flow is harder to follow than the problem requires."
+    },
+    {
+      "metric": "performance",
+      "severity": "medium",
+      "reason": "Performance and resource efficiency is meaningfully weak based on the supplied change context."
+    },
+    {
+      "metric": "coupling",
+      "severity": "medium",
+      "reason": "A dependency is broader or less necessary than the behavior requires."
+    }
+  ]
+}

@@ -1,0 +1,864 @@
+{
+  "model": "jev-latest",
+  "answers": {
+    "correctness_applicable": {
+      "type": "noul",
+      "noul": 0.93
+    },
+    "correctness_score": {
+      "type": "score",
+      "score": 5.03,
+      "confidence": 0.83,
+      "legend": {
+        "0": "1 — Serious, fundamental problems; unsafe or substantially unfit.",
+        "1": "2 — Severe problems dominate; major rework is required.",
+        "2": "3 — Serious weaknesses; important behavior or design is unreliable.",
+        "3": "4 — Meaningful weaknesses materially impede quality.",
+        "4": "5 — Several consequential weaknesses remain.",
+        "5": "6 — Acceptable baseline, but notable improvement is warranted.",
+        "6": "7 — Sound overall with limited, concrete weaknesses.",
+        "7": "8 — Strong; only minor meaningful improvements are available.",
+        "8": "9 — Very strong and well fitted to its context.",
+        "9": "10 — Exceptional; little meaningful improvement is available. Use rarely."
+      },
+      "probabilities": {
+        "0": 0.03333333333333333,
+        "1": 0.03333333333333333,
+        "2": 0.03333333333333333,
+        "3": 0.03333333333333333,
+        "4": 0.03333333333333333,
+        "5": 0.7,
+        "6": 0.03333333333333333,
+        "7": 0.03333333333333333,
+        "8": 0.03333333333333333,
+        "9": 0.03333333333333333
+      }
+    },
+    "correctness_weakness": {
+      "type": "choice",
+      "choice": "no_material_issue",
+      "confidence": 0.81,
+      "probabilities": {
+        "no_material_issue": 0.6,
+        "missing_behavior": 0.1,
+        "edge_case": 0.1,
+        "incorrect_assumption": 0.1,
+        "regression_risk": 0.1
+      }
+    },
+    "cognitiveComplexity_applicable": {
+      "type": "noul",
+      "noul": 0.93
+    },
+    "cognitiveComplexity_score": {
+      "type": "score",
+      "score": 3.46,
+      "confidence": 0.83,
+      "legend": {
+        "0": "1 — Serious, fundamental problems; unsafe or substantially unfit.",
+        "1": "2 — Severe problems dominate; major rework is required.",
+        "2": "3 — Serious weaknesses; important behavior or design is unreliable.",
+        "3": "4 — Meaningful weaknesses materially impede quality.",
+        "4": "5 — Several consequential weaknesses remain.",
+        "5": "6 — Acceptable baseline, but notable improvement is warranted.",
+        "6": "7 — Sound overall with limited, concrete weaknesses.",
+        "7": "8 — Strong; only minor meaningful improvements are available.",
+        "8": "9 — Very strong and well fitted to its context.",
+        "9": "10 — Exceptional; little meaningful improvement is available. Use rarely."
+      },
+      "probabilities": {
+        "0": 0.03333333333333333,
+        "1": 0.03333333333333333,
+        "2": 0.03333333333333333,
+        "3": 0.7,
+        "4": 0.03333333333333333,
+        "5": 0.03333333333333333,
+        "6": 0.03333333333333333,
+        "7": 0.03333333333333333,
+        "8": 0.03333333333333333,
+        "9": 0.03333333333333333
+      }
+    },
+    "cognitiveComplexity_weakness": {
+      "type": "choice",
+      "choice": "control_flow",
+      "confidence": 0.81,
+      "probabilities": {
+        "no_material_issue": 0.1,
+        "control_flow": 0.6,
+        "indirection": 0.1,
+        "state_management": 0.1,
+        "special_cases": 0.1
+      }
+    },
+    "readability_applicable": {
+      "type": "noul",
+      "noul": 0.93
+    },
+    "readability_score": {
+      "type": "score",
+      "score": 6.12,
+      "confidence": 0.83,
+      "legend": {
+        "0": "1 — Serious, fundamental problems; unsafe or substantially unfit.",
+        "1": "2 — Severe problems dominate; major rework is required.",
+        "2": "3 — Serious weaknesses; important behavior or design is unreliable.",
+        "3": "4 — Meaningful weaknesses materially impede quality.",
+        "4": "5 — Several consequential weaknesses remain.",
+        "5": "6 — Acceptable baseline, but notable improvement is warranted.",
+        "6": "7 — Sound overall with limited, concrete weaknesses.",
+        "7": "8 — Strong; only minor meaningful improvements are available.",
+        "8": "9 — Very strong and well fitted to its context.",
+        "9": "10 — Exceptional; little meaningful improvement is available. Use rarely."
+      },
+      "probabilities": {
+        "0": 0.03333333333333333,
+        "1": 0.03333333333333333,
+        "2": 0.03333333333333333,
+        "3": 0.03333333333333333,
+        "4": 0.03333333333333333,
+        "5": 0.03333333333333333,
+        "6": 0.7,
+        "7": 0.03333333333333333,
+        "8": 0.03333333333333333,
+        "9": 0.03333333333333333
+      }
+    },
+    "readability_weakness": {
+      "type": "choice",
+      "choice": "naming",
+      "confidence": 0.81,
+      "probabilities": {
+        "no_material_issue": 0.1,
+        "naming": 0.6,
+        "flow_clarity": 0.1,
+        "responsibility_clarity": 0.1,
+        "comment_quality": 0.1
+      }
+    },
+    "modularity_applicable": {
+      "type": "noul",
+      "noul": 0.93
+    },
+    "modularity_score": {
+      "type": "score",
+      "score": 7.4,
+      "confidence": 0.83,
+      "legend": {
+        "0": "1 — Serious, fundamental problems; unsafe or substantially unfit.",
+        "1": "2 — Severe problems dominate; major rework is required.",
+        "2": "3 — Serious weaknesses; important behavior or design is unreliable.",
+        "3": "4 — Meaningful weaknesses materially impede quality.",
+        "4": "5 — Several consequential weaknesses remain.",
+        "5": "6 — Acceptable baseline, but notable improvement is warranted.",
+        "6": "7 — Sound overall with limited, concrete weaknesses.",
+        "7": "8 — Strong; only minor meaningful improvements are available.",
+        "8": "9 — Very strong and well fitted to its context.",
+        "9": "10 — Exceptional; little meaningful improvement is available. Use rarely."
+      },
+      "probabilities": {
+        "0": 0.03333333333333333,
+        "1": 0.03333333333333333,
+        "2": 0.03333333333333333,
+        "3": 0.03333333333333333,
+        "4": 0.03333333333333333,
+        "5": 0.03333333333333333,
+        "6": 0.03333333333333333,
+        "7": 0.7,
+        "8": 0.03333333333333333,
+        "9": 0.03333333333333333
+      }
+    },
+    "modularity_weakness": {
+      "type": "choice",
+      "choice": "no_material_issue",
+      "confidence": 0.81,
+      "probabilities": {
+        "no_material_issue": 0.6,
+        "mixed_responsibilities": 0.1,
+        "fragmentation": 0.1,
+        "weak_boundary": 0.1,
+        "god_module": 0.1
+      }
+    },
+    "coupling_applicable": {
+      "type": "noul",
+      "noul": 0.93
+    },
+    "coupling_score": {
+      "type": "score",
+      "score": 4,
+      "confidence": 0.83,
+      "legend": {
+        "0": "1 — Serious, fundamental problems; unsafe or substantially unfit.",
+        "1": "2 — Severe problems dominate; major rework is required.",
+        "2": "3 — Serious weaknesses; important behavior or design is unreliable.",
+        "3": "4 — Meaningful weaknesses materially impede quality.",
+        "4": "5 — Several consequential weaknesses remain.",
+        "5": "6 — Acceptable baseline, but notable improvement is warranted.",
+        "6": "7 — Sound overall with limited, concrete weaknesses.",
+        "7": "8 — Strong; only minor meaningful improvements are available.",
+        "8": "9 — Very strong and well fitted to its context.",
+        "9": "10 — Exceptional; little meaningful improvement is available. Use rarely."
+      },
+      "probabilities": {
+        "0": 0.03333333333333333,
+        "1": 0.03333333333333333,
+        "2": 0.03333333333333333,
+        "3": 0.03333333333333333,
+        "4": 0.7,
+        "5": 0.03333333333333333,
+        "6": 0.03333333333333333,
+        "7": 0.03333333333333333,
+        "8": 0.03333333333333333,
+        "9": 0.03333333333333333
+      }
+    },
+    "coupling_weakness": {
+      "type": "choice",
+      "choice": "unnecessary_dependency",
+      "confidence": 0.81,
+      "probabilities": {
+        "no_material_issue": 0.1,
+        "unnecessary_dependency": 0.6,
+        "leaked_detail": 0.1,
+        "hidden_dependency": 0.1,
+        "dependency_direction": 0.1
+      }
+    },
+    "changeability_applicable": {
+      "type": "noul",
+      "noul": 0.93
+    },
+    "changeability_score": {
+      "type": "score",
+      "score": 2.21,
+      "confidence": 0.83,
+      "legend": {
+        "0": "1 — Serious, fundamental problems; unsafe or substantially unfit.",
+        "1": "2 — Severe problems dominate; major rework is required.",
+        "2": "3 — Serious weaknesses; important behavior or design is unreliable.",
+        "3": "4 — Meaningful weaknesses materially impede quality.",
+        "4": "5 — Several consequential weaknesses remain.",
+        "5": "6 — Acceptable baseline, but notable improvement is warranted.",
+        "6": "7 — Sound overall with limited, concrete weaknesses.",
+        "7": "8 — Strong; only minor meaningful improvements are available.",
+        "8": "9 — Very strong and well fitted to its context.",
+        "9": "10 — Exceptional; little meaningful improvement is available. Use rarely."
+      },
+      "probabilities": {
+        "0": 0.03333333333333333,
+        "1": 0.03333333333333333,
+        "2": 0.7,
+        "3": 0.03333333333333333,
+        "4": 0.03333333333333333,
+        "5": 0.03333333333333333,
+        "6": 0.03333333333333333,
+        "7": 0.03333333333333333,
+        "8": 0.03333333333333333,
+        "9": 0.03333333333333333
+      }
+    },
+    "changeability_weakness": {
+      "type": "choice",
+      "choice": "scattered_rule",
+      "confidence": 0.81,
+      "probabilities": {
+        "no_material_issue": 0.1,
+        "scattered_rule": 0.6,
+        "shotgun_surgery": 0.1,
+        "brittle_chain": 0.1,
+        "hidden_dependency": 0.1
+      }
+    },
+    "abstractionQuality_applicable": {
+      "type": "noul",
+      "noul": 0.93
+    },
+    "abstractionQuality_score": {
+      "type": "score",
+      "score": 6.66,
+      "confidence": 0.83,
+      "legend": {
+        "0": "1 — Serious, fundamental problems; unsafe or substantially unfit.",
+        "1": "2 — Severe problems dominate; major rework is required.",
+        "2": "3 — Serious weaknesses; important behavior or design is unreliable.",
+        "3": "4 — Meaningful weaknesses materially impede quality.",
+        "4": "5 — Several consequential weaknesses remain.",
+        "5": "6 — Acceptable baseline, but notable improvement is warranted.",
+        "6": "7 — Sound overall with limited, concrete weaknesses.",
+        "7": "8 — Strong; only minor meaningful improvements are available.",
+        "8": "9 — Very strong and well fitted to its context.",
+        "9": "10 — Exceptional; little meaningful improvement is available. Use rarely."
+      },
+      "probabilities": {
+        "0": 0.03333333333333333,
+        "1": 0.03333333333333333,
+        "2": 0.03333333333333333,
+        "3": 0.03333333333333333,
+        "4": 0.03333333333333333,
+        "5": 0.03333333333333333,
+        "6": 0.03333333333333333,
+        "7": 0.7,
+        "8": 0.03333333333333333,
+        "9": 0.03333333333333333
+      }
+    },
+    "abstractionQuality_weakness": {
+      "type": "choice",
+      "choice": "no_material_issue",
+      "confidence": 0.81,
+      "probabilities": {
+        "no_material_issue": 0.6,
+        "shallow_wrapper": 0.1,
+        "premature_abstraction": 0.1,
+        "leaky_api": 0.1,
+        "overloaded_abstraction": 0.1
+      }
+    },
+    "projectStructure_applicable": {
+      "type": "noul",
+      "noul": 0.93
+    },
+    "projectStructure_score": {
+      "type": "score",
+      "score": 5.5,
+      "confidence": 0.83,
+      "legend": {
+        "0": "1 — Serious, fundamental problems; unsafe or substantially unfit.",
+        "1": "2 — Severe problems dominate; major rework is required.",
+        "2": "3 — Serious weaknesses; important behavior or design is unreliable.",
+        "3": "4 — Meaningful weaknesses materially impede quality.",
+        "4": "5 — Several consequential weaknesses remain.",
+        "5": "6 — Acceptable baseline, but notable improvement is warranted.",
+        "6": "7 — Sound overall with limited, concrete weaknesses.",
+        "7": "8 — Strong; only minor meaningful improvements are available.",
+        "8": "9 — Very strong and well fitted to its context.",
+        "9": "10 — Exceptional; little meaningful improvement is available. Use rarely."
+      },
+      "probabilities": {
+        "0": 0.03333333333333333,
+        "1": 0.03333333333333333,
+        "2": 0.03333333333333333,
+        "3": 0.03333333333333333,
+        "4": 0.03333333333333333,
+        "5": 0.03333333333333333,
+        "6": 0.7,
+        "7": 0.03333333333333333,
+        "8": 0.03333333333333333,
+        "9": 0.03333333333333333
+      }
+    },
+    "projectStructure_weakness": {
+      "type": "choice",
+      "choice": "unpredictable_location",
+      "confidence": 0.81,
+      "probabilities": {
+        "no_material_issue": 0.1,
+        "unpredictable_location": 0.6,
+        "utility_dumping_ground": 0.1,
+        "scattered_feature": 0.1,
+        "excessive_fragmentation": 0.1
+      }
+    },
+    "duplication_applicable": {
+      "type": "noul",
+      "noul": 0.93
+    },
+    "duplication_score": {
+      "type": "score",
+      "score": 8.1,
+      "confidence": 0.83,
+      "legend": {
+        "0": "1 — Serious, fundamental problems; unsafe or substantially unfit.",
+        "1": "2 — Severe problems dominate; major rework is required.",
+        "2": "3 — Serious weaknesses; important behavior or design is unreliable.",
+        "3": "4 — Meaningful weaknesses materially impede quality.",
+        "4": "5 — Several consequential weaknesses remain.",
+        "5": "6 — Acceptable baseline, but notable improvement is warranted.",
+        "6": "7 — Sound overall with limited, concrete weaknesses.",
+        "7": "8 — Strong; only minor meaningful improvements are available.",
+        "8": "9 — Very strong and well fitted to its context.",
+        "9": "10 — Exceptional; little meaningful improvement is available. Use rarely."
+      },
+      "probabilities": {
+        "0": 0.03333333333333333,
+        "1": 0.03333333333333333,
+        "2": 0.03333333333333333,
+        "3": 0.03333333333333333,
+        "4": 0.03333333333333333,
+        "5": 0.03333333333333333,
+        "6": 0.03333333333333333,
+        "7": 0.03333333333333333,
+        "8": 0.7,
+        "9": 0.03333333333333333
+      }
+    },
+    "duplication_weakness": {
+      "type": "choice",
+      "choice": "duplicated_rule",
+      "confidence": 0.81,
+      "probabilities": {
+        "no_material_issue": 0.1,
+        "duplicated_rule": 0.6,
+        "repeated_knowledge": 0.1,
+        "missed_existing_reuse": 0.1,
+        "forced_reuse": 0.1
+      }
+    },
+    "maintainability_applicable": {
+      "type": "noul",
+      "noul": 0.55
+    },
+    "maintainability_score": {
+      "type": "score",
+      "score": 4.88,
+      "confidence": 0.83,
+      "legend": {
+        "0": "1 — Serious, fundamental problems; unsafe or substantially unfit.",
+        "1": "2 — Severe problems dominate; major rework is required.",
+        "2": "3 — Serious weaknesses; important behavior or design is unreliable.",
+        "3": "4 — Meaningful weaknesses materially impede quality.",
+        "4": "5 — Several consequential weaknesses remain.",
+        "5": "6 — Acceptable baseline, but notable improvement is warranted.",
+        "6": "7 — Sound overall with limited, concrete weaknesses.",
+        "7": "8 — Strong; only minor meaningful improvements are available.",
+        "8": "9 — Very strong and well fitted to its context.",
+        "9": "10 — Exceptional; little meaningful improvement is available. Use rarely."
+      },
+      "probabilities": {
+        "0": 0.03333333333333333,
+        "1": 0.03333333333333333,
+        "2": 0.03333333333333333,
+        "3": 0.03333333333333333,
+        "4": 0.03333333333333333,
+        "5": 0.7,
+        "6": 0.03333333333333333,
+        "7": 0.03333333333333333,
+        "8": 0.03333333333333333,
+        "9": 0.03333333333333333
+      }
+    },
+    "maintainability_weakness": {
+      "type": "choice",
+      "choice": "no_material_issue",
+      "confidence": 0.81,
+      "probabilities": {
+        "no_material_issue": 0.6,
+        "understanding_cost": 0.1,
+        "modification_cost": 0.1,
+        "debugging_cost": 0.1,
+        "extension_cost": 0.1
+      }
+    },
+    "testQuality_applicable": {
+      "type": "noul",
+      "noul": 0.93
+    },
+    "testQuality_score": {
+      "type": "score",
+      "score": 3.1,
+      "confidence": 0.83,
+      "legend": {
+        "0": "1 — Serious, fundamental problems; unsafe or substantially unfit.",
+        "1": "2 — Severe problems dominate; major rework is required.",
+        "2": "3 — Serious weaknesses; important behavior or design is unreliable.",
+        "3": "4 — Meaningful weaknesses materially impede quality.",
+        "4": "5 — Several consequential weaknesses remain.",
+        "5": "6 — Acceptable baseline, but notable improvement is warranted.",
+        "6": "7 — Sound overall with limited, concrete weaknesses.",
+        "7": "8 — Strong; only minor meaningful improvements are available.",
+        "8": "9 — Very strong and well fitted to its context.",
+        "9": "10 — Exceptional; little meaningful improvement is available. Use rarely."
+      },
+      "probabilities": {
+        "0": 0.03333333333333333,
+        "1": 0.03333333333333333,
+        "2": 0.03333333333333333,
+        "3": 0.7,
+        "4": 0.03333333333333333,
+        "5": 0.03333333333333333,
+        "6": 0.03333333333333333,
+        "7": 0.03333333333333333,
+        "8": 0.03333333333333333,
+        "9": 0.03333333333333333
+      }
+    },
+    "testQuality_weakness": {
+      "type": "choice",
+      "choice": "missing_coverage",
+      "confidence": 0.81,
+      "probabilities": {
+        "no_material_issue": 0.1,
+        "missing_coverage": 0.6,
+        "weak_assertions": 0.1,
+        "brittle_tests": 0.1,
+        "nondeterminism": 0.1
+      }
+    },
+    "reliability_applicable": {
+      "type": "noul",
+      "noul": 0.93
+    },
+    "reliability_score": {
+      "type": "score",
+      "score": 6.2,
+      "confidence": 0.83,
+      "legend": {
+        "0": "1 — Serious, fundamental problems; unsafe or substantially unfit.",
+        "1": "2 — Severe problems dominate; major rework is required.",
+        "2": "3 — Serious weaknesses; important behavior or design is unreliable.",
+        "3": "4 — Meaningful weaknesses materially impede quality.",
+        "4": "5 — Several consequential weaknesses remain.",
+        "5": "6 — Acceptable baseline, but notable improvement is warranted.",
+        "6": "7 — Sound overall with limited, concrete weaknesses.",
+        "7": "8 — Strong; only minor meaningful improvements are available.",
+        "8": "9 — Very strong and well fitted to its context.",
+        "9": "10 — Exceptional; little meaningful improvement is available. Use rarely."
+      },
+      "probabilities": {
+        "0": 0.03333333333333333,
+        "1": 0.03333333333333333,
+        "2": 0.03333333333333333,
+        "3": 0.03333333333333333,
+        "4": 0.03333333333333333,
+        "5": 0.03333333333333333,
+        "6": 0.7,
+        "7": 0.03333333333333333,
+        "8": 0.03333333333333333,
+        "9": 0.03333333333333333
+      }
+    },
+    "reliability_weakness": {
+      "type": "choice",
+      "choice": "error_propagation",
+      "confidence": 0.81,
+      "probabilities": {
+        "no_material_issue": 0.1,
+        "error_propagation": 0.6,
+        "cleanup": 0.1,
+        "timeout_retry": 0.1,
+        "concurrency": 0.1
+      }
+    },
+    "security_applicable": {
+      "type": "noul",
+      "noul": 0.93
+    },
+    "security_score": {
+      "type": "score",
+      "score": 5.7,
+      "confidence": 0.83,
+      "legend": {
+        "0": "1 — Serious, fundamental problems; unsafe or substantially unfit.",
+        "1": "2 — Severe problems dominate; major rework is required.",
+        "2": "3 — Serious weaknesses; important behavior or design is unreliable.",
+        "3": "4 — Meaningful weaknesses materially impede quality.",
+        "4": "5 — Several consequential weaknesses remain.",
+        "5": "6 — Acceptable baseline, but notable improvement is warranted.",
+        "6": "7 — Sound overall with limited, concrete weaknesses.",
+        "7": "8 — Strong; only minor meaningful improvements are available.",
+        "8": "9 — Very strong and well fitted to its context.",
+        "9": "10 — Exceptional; little meaningful improvement is available. Use rarely."
+      },
+      "probabilities": {
+        "0": 0.03333333333333333,
+        "1": 0.03333333333333333,
+        "2": 0.03333333333333333,
+        "3": 0.03333333333333333,
+        "4": 0.03333333333333333,
+        "5": 0.03333333333333333,
+        "6": 0.7,
+        "7": 0.03333333333333333,
+        "8": 0.03333333333333333,
+        "9": 0.03333333333333333
+      }
+    },
+    "security_weakness": {
+      "type": "choice",
+      "choice": "no_material_issue",
+      "confidence": 0.81,
+      "probabilities": {
+        "no_material_issue": 0.6,
+        "input_validation": 0.1,
+        "secret_handling": 0.1,
+        "authorization": 0.1,
+        "injection": 0.1
+      }
+    },
+    "consistency_applicable": {
+      "type": "noul",
+      "noul": 0.93
+    },
+    "consistency_score": {
+      "type": "score",
+      "score": 7.05,
+      "confidence": 0.83,
+      "legend": {
+        "0": "1 — Serious, fundamental problems; unsafe or substantially unfit.",
+        "1": "2 — Severe problems dominate; major rework is required.",
+        "2": "3 — Serious weaknesses; important behavior or design is unreliable.",
+        "3": "4 — Meaningful weaknesses materially impede quality.",
+        "4": "5 — Several consequential weaknesses remain.",
+        "5": "6 — Acceptable baseline, but notable improvement is warranted.",
+        "6": "7 — Sound overall with limited, concrete weaknesses.",
+        "7": "8 — Strong; only minor meaningful improvements are available.",
+        "8": "9 — Very strong and well fitted to its context.",
+        "9": "10 — Exceptional; little meaningful improvement is available. Use rarely."
+      },
+      "probabilities": {
+        "0": 0.03333333333333333,
+        "1": 0.03333333333333333,
+        "2": 0.03333333333333333,
+        "3": 0.03333333333333333,
+        "4": 0.03333333333333333,
+        "5": 0.03333333333333333,
+        "6": 0.03333333333333333,
+        "7": 0.7,
+        "8": 0.03333333333333333,
+        "9": 0.03333333333333333
+      }
+    },
+    "consistency_weakness": {
+      "type": "choice",
+      "choice": "repository_pattern",
+      "confidence": 0.81,
+      "probabilities": {
+        "no_material_issue": 0.1,
+        "repository_pattern": 0.6,
+        "naming_convention": 0.1,
+        "competing_pattern": 0.1,
+        "local_inconsistency": 0.1
+      }
+    },
+    "documentation_applicable": {
+      "type": "noul",
+      "noul": 0.93
+    },
+    "documentation_score": {
+      "type": "score",
+      "score": 4.4,
+      "confidence": 0.83,
+      "legend": {
+        "0": "1 — Serious, fundamental problems; unsafe or substantially unfit.",
+        "1": "2 — Severe problems dominate; major rework is required.",
+        "2": "3 — Serious weaknesses; important behavior or design is unreliable.",
+        "3": "4 — Meaningful weaknesses materially impede quality.",
+        "4": "5 — Several consequential weaknesses remain.",
+        "5": "6 — Acceptable baseline, but notable improvement is warranted.",
+        "6": "7 — Sound overall with limited, concrete weaknesses.",
+        "7": "8 — Strong; only minor meaningful improvements are available.",
+        "8": "9 — Very strong and well fitted to its context.",
+        "9": "10 — Exceptional; little meaningful improvement is available. Use rarely."
+      },
+      "probabilities": {
+        "0": 0.03333333333333333,
+        "1": 0.03333333333333333,
+        "2": 0.03333333333333333,
+        "3": 0.03333333333333333,
+        "4": 0.7,
+        "5": 0.03333333333333333,
+        "6": 0.03333333333333333,
+        "7": 0.03333333333333333,
+        "8": 0.03333333333333333,
+        "9": 0.03333333333333333
+      }
+    },
+    "documentation_weakness": {
+      "type": "choice",
+      "choice": "public_contract",
+      "confidence": 0.81,
+      "probabilities": {
+        "no_material_issue": 0.1,
+        "public_contract": 0.6,
+        "rationale": 0.1,
+        "configuration": 0.1,
+        "comment_noise": 0.1
+      }
+    },
+    "performance_applicable": {
+      "type": "noul",
+      "noul": 0.71
+    },
+    "performance_score": {
+      "type": "score",
+      "score": 3.3,
+      "confidence": 0.83,
+      "legend": {
+        "0": "1 — Serious, fundamental problems; unsafe or substantially unfit.",
+        "1": "2 — Severe problems dominate; major rework is required.",
+        "2": "3 — Serious weaknesses; important behavior or design is unreliable.",
+        "3": "4 — Meaningful weaknesses materially impede quality.",
+        "4": "5 — Several consequential weaknesses remain.",
+        "5": "6 — Acceptable baseline, but notable improvement is warranted.",
+        "6": "7 — Sound overall with limited, concrete weaknesses.",
+        "7": "8 — Strong; only minor meaningful improvements are available.",
+        "8": "9 — Very strong and well fitted to its context.",
+        "9": "10 — Exceptional; little meaningful improvement is available. Use rarely."
+      },
+      "probabilities": {
+        "0": 0.03333333333333333,
+        "1": 0.03333333333333333,
+        "2": 0.03333333333333333,
+        "3": 0.7,
+        "4": 0.03333333333333333,
+        "5": 0.03333333333333333,
+        "6": 0.03333333333333333,
+        "7": 0.03333333333333333,
+        "8": 0.03333333333333333,
+        "9": 0.03333333333333333
+      }
+    },
+    "performance_weakness": {
+      "type": "choice",
+      "choice": "no_material_issue",
+      "confidence": 0.81,
+      "probabilities": {
+        "no_material_issue": 0.6,
+        "algorithmic_cost": 0.1,
+        "repeated_work": 0.1,
+        "resource_use": 0.1,
+        "n_plus_one": 0.1
+      }
+    },
+    "scalability_applicable": {
+      "type": "noul",
+      "noul": 0.12
+    },
+    "scalability_score": {
+      "type": "score",
+      "score": 6,
+      "confidence": 0.83,
+      "legend": {
+        "0": "1 — Serious, fundamental problems; unsafe or substantially unfit.",
+        "1": "2 — Severe problems dominate; major rework is required.",
+        "2": "3 — Serious weaknesses; important behavior or design is unreliable.",
+        "3": "4 — Meaningful weaknesses materially impede quality.",
+        "4": "5 — Several consequential weaknesses remain.",
+        "5": "6 — Acceptable baseline, but notable improvement is warranted.",
+        "6": "7 — Sound overall with limited, concrete weaknesses.",
+        "7": "8 — Strong; only minor meaningful improvements are available.",
+        "8": "9 — Very strong and well fitted to its context.",
+        "9": "10 — Exceptional; little meaningful improvement is available. Use rarely."
+      },
+      "probabilities": {
+        "0": 0.03333333333333333,
+        "1": 0.03333333333333333,
+        "2": 0.03333333333333333,
+        "3": 0.03333333333333333,
+        "4": 0.03333333333333333,
+        "5": 0.03333333333333333,
+        "6": 0.7,
+        "7": 0.03333333333333333,
+        "8": 0.03333333333333333,
+        "9": 0.03333333333333333
+      }
+    },
+    "scalability_weakness": {
+      "type": "choice",
+      "choice": "growth_bottleneck",
+      "confidence": 0.81,
+      "probabilities": {
+        "no_material_issue": 0.1,
+        "growth_bottleneck": 0.6,
+        "rigid_assumption": 0.1,
+        "speculative_architecture": 0.1,
+        "scaling_boundary": 0.1
+      }
+    },
+    "compatibility_applicable": {
+      "type": "noul",
+      "noul": 0.12
+    },
+    "compatibility_score": {
+      "type": "score",
+      "score": 5.2,
+      "confidence": 0.83,
+      "legend": {
+        "0": "1 — Serious, fundamental problems; unsafe or substantially unfit.",
+        "1": "2 — Severe problems dominate; major rework is required.",
+        "2": "3 — Serious weaknesses; important behavior or design is unreliable.",
+        "3": "4 — Meaningful weaknesses materially impede quality.",
+        "4": "5 — Several consequential weaknesses remain.",
+        "5": "6 — Acceptable baseline, but notable improvement is warranted.",
+        "6": "7 — Sound overall with limited, concrete weaknesses.",
+        "7": "8 — Strong; only minor meaningful improvements are available.",
+        "8": "9 — Very strong and well fitted to its context.",
+        "9": "10 — Exceptional; little meaningful improvement is available. Use rarely."
+      },
+      "probabilities": {
+        "0": 0.03333333333333333,
+        "1": 0.03333333333333333,
+        "2": 0.03333333333333333,
+        "3": 0.03333333333333333,
+        "4": 0.03333333333333333,
+        "5": 0.7,
+        "6": 0.03333333333333333,
+        "7": 0.03333333333333333,
+        "8": 0.03333333333333333,
+        "9": 0.03333333333333333
+      }
+    },
+    "compatibility_weakness": {
+      "type": "choice",
+      "choice": "breaking_change",
+      "confidence": 0.81,
+      "probabilities": {
+        "no_material_issue": 0.1,
+        "breaking_change": 0.6,
+        "migration_gap": 0.1,
+        "version_assumption": 0.1,
+        "interoperability": 0.1
+      }
+    },
+    "observability_applicable": {
+      "type": "noul",
+      "noul": 0.12
+    },
+    "observability_score": {
+      "type": "score",
+      "score": 2.9,
+      "confidence": 0.83,
+      "legend": {
+        "0": "1 — Serious, fundamental problems; unsafe or substantially unfit.",
+        "1": "2 — Severe problems dominate; major rework is required.",
+        "2": "3 — Serious weaknesses; important behavior or design is unreliable.",
+        "3": "4 — Meaningful weaknesses materially impede quality.",
+        "4": "5 — Several consequential weaknesses remain.",
+        "5": "6 — Acceptable baseline, but notable improvement is warranted.",
+        "6": "7 — Sound overall with limited, concrete weaknesses.",
+        "7": "8 — Strong; only minor meaningful improvements are available.",
+        "8": "9 — Very strong and well fitted to its context.",
+        "9": "10 — Exceptional; little meaningful improvement is available. Use rarely."
+      },
+      "probabilities": {
+        "0": 0.03333333333333333,
+        "1": 0.03333333333333333,
+        "2": 0.03333333333333333,
+        "3": 0.7,
+        "4": 0.03333333333333333,
+        "5": 0.03333333333333333,
+        "6": 0.03333333333333333,
+        "7": 0.03333333333333333,
+        "8": 0.03333333333333333,
+        "9": 0.03333333333333333
+      }
+    },
+    "observability_weakness": {
+      "type": "choice",
+      "choice": "no_material_issue",
+      "confidence": 0.81,
+      "probabilities": {
+        "no_material_issue": 0.6,
+        "failure_visibility": 0.1,
+        "diagnostic_context": 0.1,
+        "noisy_logging": 0.1,
+        "missing_measurement": 0.1
+      }
+    }
+  },
+  "usage": {
+    "input_tokens": 21873,
+    "output_tokens": 57
+  }
+}
