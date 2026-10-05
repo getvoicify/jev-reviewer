@@ -2,8 +2,9 @@ import { describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join, relative } from "node:path";
+import { DefaultArtifactClient } from "@actions/artifact";
 import type { Octokit } from "octokit";
-import { type ArtifactTransfer, ArtifactRecordStore } from "../src/store/artifact-store";
+import { ArtifactRecordStore, type ArtifactTransfer } from "../src/store/artifact-store";
 
 interface ApiArtifact {
   id: number;
@@ -79,11 +80,12 @@ describe("ArtifactRecordStore.listArtifacts", () => {
   test("pages through every artifact of the given name in the repository", async () => {
     const { octokit, paginated, listArtifactsForRepo } = fakeOctokit();
 
-    await new ArtifactRecordStore(octokit, fakeTransfer().transfer, "tok", tempRoot()).listArtifacts(
-      "o",
-      "r",
-      "jev-gate-record-abc",
-    );
+    await new ArtifactRecordStore(
+      octokit,
+      fakeTransfer().transfer,
+      "tok",
+      tempRoot(),
+    ).listArtifacts("o", "r", "jev-gate-record-abc");
 
     expect(paginated).toEqual([
       {
@@ -132,7 +134,12 @@ describe("ArtifactRecordStore.listArtifacts", () => {
 describe("ArtifactRecordStore.workflowRun", () => {
   test("returns the workflow file path and triggering event of the run", async () => {
     const { octokit, runRequests } = fakeOctokit([], async () => ({
-      data: { id: 42, name: "Jev gate", path: ".github/workflows/jev-gate.yml", event: "pull_request" },
+      data: {
+        id: 42,
+        name: "Jev gate",
+        path: ".github/workflows/jev-gate.yml",
+        event: "pull_request",
+      },
     }));
 
     const origin = await new ArtifactRecordStore(
@@ -152,11 +159,12 @@ describe("ArtifactRecordStore.workflowRun", () => {
     });
 
     expect(
-      await new ArtifactRecordStore(octokit, fakeTransfer().transfer, "tok", tempRoot()).workflowRun(
-        "o",
-        "r",
-        42,
-      ),
+      await new ArtifactRecordStore(
+        octokit,
+        fakeTransfer().transfer,
+        "tok",
+        tempRoot(),
+      ).workflowRun("o", "r", 42),
     ).toBeNull();
   });
 
@@ -270,5 +278,14 @@ describe("ArtifactRecordStore.uploadRecord", () => {
     );
 
     expect(existsSync(uploads[0]?.rootDirectory ?? "")).toBe(false);
+  });
+});
+
+describe("ArtifactTransfer", () => {
+  test("is satisfied by the @actions/artifact client the action will hand the store", () => {
+    const transfer: ArtifactTransfer = new DefaultArtifactClient();
+
+    expect(typeof transfer.uploadArtifact).toBe("function");
+    expect(typeof transfer.downloadArtifact).toBe("function");
   });
 });

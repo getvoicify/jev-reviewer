@@ -59,9 +59,7 @@ function reader({ artifacts, runs = { 10: GATE }, files = {} }: Stub) {
     async downloadRecordText(owner, repo, target) {
       calls.push(["download", owner, repo, target.id, target.workflowRunId]);
       downloads.push(target.id);
-      return target.id in files
-        ? (files[target.id] ?? null)
-        : encodeRecord(record("1".repeat(40)));
+      return target.id in files ? (files[target.id] ?? null) : encodeRecord(record("1".repeat(40)));
     },
   };
   return { stub, calls, lookups, downloads };
@@ -178,7 +176,10 @@ describe("loadPreviousRecord", () => {
     };
 
     expect(
-      await loadPreviousRecord(reader({ artifacts: [earlierInstant, laterInstant], files }).stub, QUERY),
+      await loadPreviousRecord(
+        reader({ artifacts: [earlierInstant, laterInstant], files }).stub,
+        QUERY,
+      ),
     ).toEqual(record("2".repeat(40)));
   });
 
