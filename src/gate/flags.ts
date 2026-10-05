@@ -1,5 +1,5 @@
 import picomatch from "picomatch";
-import { BINARY_ASSET_EXTENSIONS } from "../diff/exclude";
+import { INERT_ASSET_EXTENSIONS } from "../diff/exclude";
 import type { CumulativeDiff, DiffFile, Partition } from "../diff/types";
 import type { VerdictFlags } from "./verdict";
 
@@ -12,6 +12,14 @@ const AGENT_STEERING_GLOBS: readonly string[] = [
   "**/.github/copilot-instructions.md",
   "**/.github/instructions/**",
   "**/.github/prompts/**",
+  "**/.github/chatmodes/**",
+  "**/.windsurf/**",
+  "**/.windsurfrules",
+  "**/.clinerules",
+  "**/.clinerules/**",
+  "**/.kiro/**",
+  "**/CONVENTIONS.md",
+  "**/.aider*",
 ];
 
 const DOCUMENTATION_GLOBS: readonly string[] = [
@@ -27,22 +35,14 @@ const DOCUMENTATION_GLOBS: readonly string[] = [
 ];
 
 const INERT_EXCLUDED_GLOBS: readonly string[] = [
-  "**/bun.lock",
-  "**/bun.lockb",
-  "**/package-lock.json",
-  "**/yarn.lock",
-  "**/pnpm-lock.yaml",
-  "**/Cargo.lock",
-  "**/poetry.lock",
-  "**/go.sum",
-  ...BINARY_ASSET_EXTENSIONS.map((ext) => `**/*.${ext}`),
+  ...INERT_ASSET_EXTENSIONS.map((ext) => `**/*.${ext}`),
   "**/*census.json",
   "**/.release-please-manifest.json",
   "**/CHANGELOG.md",
   "packages/db/drizzle/meta/**",
 ];
 
-const steersAgents = picomatch([...AGENT_STEERING_GLOBS], { dot: true });
+const steersAgents = picomatch([...AGENT_STEERING_GLOBS], { dot: true, nocase: true });
 const isDocumentation = picomatch([...DOCUMENTATION_GLOBS], { dot: true });
 const isInert = picomatch([...INERT_EXCLUDED_GLOBS], { dot: true });
 
