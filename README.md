@@ -105,7 +105,7 @@ post one under that name.
 name: Jev gate
 on:
   pull_request_target:
-    types: [opened, synchronize, reopened, labeled]
+    types: [opened, synchronize, reopened, labeled, unlabeled]
 
 permissions:
   contents: read
@@ -173,6 +173,9 @@ That run reuses the head's stored evaluation, when there is one, without calling
 event a neutral result fails, whatever labels the PR carries. Every `synchronize` and `reopened` run
 also removes the label before it evaluates, and if the removal fails no override is honoured on that
 run.
+
+To revoke an override, remove the label: the gate re-runs on the `unlabeled` event and fails a
+neutral verdict, reusing the head's stored evaluation without calling Jev.
 
 ## Development
 
