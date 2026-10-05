@@ -60,6 +60,7 @@ export class ArtifactRecordStore implements RecordReader, RecordWriter {
       workflowRunId: artifact.workflow_run?.id ?? null,
       expired: artifact.expired,
       createdAt: artifact.created_at,
+      sizeInBytes: artifact.size_in_bytes,
     }));
   }
 

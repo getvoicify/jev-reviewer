@@ -53,7 +53,12 @@ export async function loadPreviousRecord(
   const name = recordArtifactName(sha);
   const artifacts = await reader.listArtifacts(owner, repo, name);
   const candidates = artifacts
-    .filter((artifact) => artifact.name === name && !artifact.expired)
+    .filter(
+      (artifact) =>
+        artifact.name === name &&
+        !artifact.expired &&
+        artifact.sizeInBytes <= MAX_RECORD_ARTIFACT_BYTES,
+    )
     .flatMap((artifact) => {
       const millis = createdAtMillis(artifact);
       return millis === null || artifact.workflowRunId === null
