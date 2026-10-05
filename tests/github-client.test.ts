@@ -206,7 +206,7 @@ describe("GitHubClient.createGateCheckRun", () => {
       text: "X",
       annotations: all,
     });
-    expect((created[0]?.output as { annotations: unknown[] }).annotations).toHaveLength(50);
+    expect(created[0]).toMatchObject({ output: { annotations: all.slice(0, 50) } });
     expect(updated).toHaveLength(1);
     expect(updated[0]).toMatchObject({
       check_run_id: 41,

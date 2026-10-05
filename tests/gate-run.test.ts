@@ -9,7 +9,7 @@ import { JevError, type JevPort } from "../src/jev";
 import { type Evaluation, type MetricAnswers, metricKeys, toEvaluation } from "../src/metrics";
 import { evaluatorFingerprint } from "../src/store/evaluator";
 import type { ListedArtifact, RecordReader } from "../src/store/load";
-import { decodeRecord, type EvaluationRecord, encodeRecord } from "../src/store/record";
+import { decodeRecord, type EvaluationRecord } from "../src/store/record";
 import { type RecordWriter, recordArtifactName } from "../src/store/save";
 
 const HEAD = "a".repeat(40);
@@ -452,6 +452,20 @@ describe("runGate: score", () => {
     expect(check.conclusion).toBe("neutral");
     expect(check.title).toContain("evaluator unavailable: timeout");
     expect(io.failures).toEqual(["evaluator unavailable: timeout"]);
+    expect(records.uploads).toEqual([]);
+  });
+
+  for (const code of ["api_error", "connection"] as const) {
+    test(`goes neutral when Jev fails with ${code}`, async () => {
+      const { check } = await run({ replies: [new JevError(code, "down")] });
+      expect(check.conclusion).toBe("neutral");
+    });
+  }
+
+  test("fails closed when the Jev client fails for an unexpected reason", async () => {
+    const { check, io, records } = await run({ replies: [new JevError("unknown", "bug")] });
+    expect(check.conclusion).toBe("failure");
+    expect(io.failures).toEqual(["evaluator returned invalid output"]);
     expect(records.uploads).toEqual([]);
   });
 
