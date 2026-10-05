@@ -32,6 +32,7 @@ export async function reviewDiff(
   prMeta: PrMeta,
   policy: ReviewPolicy = DEFAULT_POLICY,
   questionOverrides?: QuestionOverrides,
+  model?: string,
 ): Promise<ReviewResult> {
   const questions = buildChunkQuestions(questionOverrides);
   const chunkReviews = [];
@@ -39,6 +40,7 @@ export async function reviewDiff(
     const response = await jev.systemOne({
       state: buildChunkState(chunk),
       questions,
+      model,
     });
     // SAFETY: answers for the ids the composition reads match their question
     // types by construction (the same builders produced the questions above);
@@ -54,6 +56,7 @@ export async function reviewDiff(
   const prResponse = await jev.systemOne({
     state: buildPrState(prMeta),
     questions: buildPrQuestions(),
+    model,
   });
   const pr = reviewPrAnswers(prResponse.answers, policy);
 
