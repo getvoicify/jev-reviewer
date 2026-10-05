@@ -47,6 +47,7 @@ type Harness = {
   payload?: unknown;
   gate?: (config: GateModeConfig, context: GateContext) => Promise<void>;
   review?: (config: Config, context: AppContext) => Promise<void>;
+  readEvent?: MainDeps["event"];
 };
 
 async function harness(options: Harness = {}) {
@@ -60,12 +61,14 @@ async function harness(options: Harness = {}) {
       getMultiline: (name) => (inputs[name] ?? "").split("\n").filter((line) => line !== ""),
     },
     env: {},
-    event: {
-      name: options.eventName ?? "pull_request_target",
-      payload: options.payload ?? PR_PAYLOAD,
-      owner: "voicify",
-      repo: "tutela",
-    },
+    event:
+      options.readEvent ??
+      (() => ({
+        name: options.eventName ?? "pull_request_target",
+        payload: options.payload ?? PR_PAYLOAD,
+        owner: "voicify",
+        repo: "tutela",
+      })),
     setFailed: (message) => failures.push(message),
     gate: async (config, context) => {
       gateCalls.push({ config, context });
@@ -167,6 +170,29 @@ describe("main: top-level catch", () => {
     });
     expect(failures).toEqual(["Bad credentials"]);
   });
+
+  for (const inputs of [GATE_INPUTS, REVIEW_INPUTS]) {
+    test(`fails on a missing key before reading the event in ${inputs.mode ?? "review"} mode`, async () => {
+      const { failures } = await harness({
+        inputs: { ...inputs, "typesafe-api-key": "" },
+        readEvent: () => {
+          throw new Error("context.repo requires a GITHUB_REPOSITORY environment variable");
+        },
+      });
+      expect(failures).toHaveLength(1);
+      expect(failures[0]).toStartWith("No TypeSafe API key");
+    });
+
+    test(`fails the job when the event cannot be read in ${inputs.mode ?? "review"} mode`, async () => {
+      const { failures } = await harness({
+        inputs,
+        readEvent: () => {
+          throw new Error("context.repo requires a GITHUB_REPOSITORY environment variable");
+        },
+      });
+      expect(failures).toEqual(["context.repo requires a GITHUB_REPOSITORY environment variable"]);
+    });
+  }
 
   test("fails the review outside a pull request", async () => {
     const { failures, reviewCalls } = await harness({ inputs: REVIEW_INPUTS, payload: {} });

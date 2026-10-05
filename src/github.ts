@@ -75,16 +75,49 @@ export class GitHubClient implements GitHubPort {
     this.#warn = warn;
   }
 
-  async overrideApproved(_query: OverrideQuery): Promise<boolean> {
-    return true;
+  async overrideApproved(query: OverrideQuery): Promise<boolean> {
+    if (query.actors.length === 0) return false;
+    try {
+      return await this.#overrideApproved(query);
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      this.#warn(
+        `Could not confirm the "${query.label}" override, so it is not honoured: ${reason}`,
+      );
+      return false;
+    }
   }
 
-  async removeLabel(
-    _owner: string,
-    _repo: string,
-    _prNumber: number,
-    _label: string,
-  ): Promise<void> {}
+  async #overrideApproved({ owner, repo, prNumber, label, actors }: OverrideQuery) {
+    const params = { owner, repo, issue_number: prNumber, per_page: 100 };
+    const labels = await this.#octokit.paginate(
+      this.#octokit.rest.issues.listLabelsOnIssue,
+      params,
+    );
+    if (!labels.some((present) => present.name === label)) return false;
+    const events = await this.#octokit.paginate(this.#octokit.rest.issues.listEvents, params);
+    const latest = events
+      .filter(
+        (event) => event.event === "labeled" && "label" in event && event.label.name === label,
+      )
+      .sort((a, b) => Date.parse(a.created_at) - Date.parse(b.created_at) || a.id - b.id)
+      .at(-1);
+    const login = latest?.actor?.login;
+    return login !== undefined && actors.includes(login);
+  }
+
+  async removeLabel(owner: string, repo: string, prNumber: number, label: string): Promise<void> {
+    try {
+      await this.#octokit.rest.issues.removeLabel({
+        owner,
+        repo,
+        issue_number: prNumber,
+        name: label,
+      });
+    } catch (error) {
+      if ((error as { status?: unknown } | null)?.status !== 404) throw error;
+    }
+  }
 
   async getPullDiff(owner: string, repo: string, pullNumber: number): Promise<string> {
     const { data } = await this.#octokit.rest.pulls.get({

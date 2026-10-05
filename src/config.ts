@@ -31,13 +31,18 @@ export interface RawInputs {
   questionsFile: string;
 }
 
-export function parseConfig(inputs: RawInputs, env: Record<string, string | undefined>): Config {
-  const apiKey = inputs.apiKey.trim() || env.TYPESAFE_API_KEY?.trim() || "";
+function resolveApiKey(input: string, env: Record<string, string | undefined>): string {
+  const apiKey = input.trim() || env.TYPESAFE_API_KEY?.trim() || "";
   if (!apiKey) {
     throw new Error(
       "No TypeSafe API key: set the typesafe-api-key input or the TYPESAFE_API_KEY environment variable",
     );
   }
+  return apiKey;
+}
+
+export function parseConfig(inputs: RawInputs, env: Record<string, string | undefined>): Config {
+  const apiKey = resolveApiKey(inputs.apiKey, env);
 
   const failOn = inputs.failOn.trim() as FailOn;
   if (!FAIL_ON_VALUES.includes(failOn)) {
@@ -113,13 +118,42 @@ export interface GateModeConfig {
   commentAuthor: string;
 }
 
-export function parseMode(_value: string): Mode {
-  return "review";
+const MODES: readonly Mode[] = ["review", "gate"];
+const TRUSTED_EVENTS: readonly string[] = ["pull_request_target", "pull_request"];
+
+export function parseMode(value: string): Mode {
+  const mode = value.trim() || "review";
+  if (!MODES.includes(mode as Mode)) {
+    throw new Error(`mode must be one of ${MODES.join(", ")}, got "${value}"`);
+  }
+  return mode as Mode;
 }
 
 export function parseGateInputs(
-  _inputs: RawGateInputs,
-  _env: Record<string, string | undefined>,
+  inputs: RawGateInputs,
+  env: Record<string, string | undefined>,
 ): GateModeConfig {
-  throw new Error("not implemented");
+  const apiKey = resolveApiKey(inputs.apiKey, env);
+  const path = inputs.trustedWorkflowPath.trim();
+  if (!path) throw new Error("trusted-workflow-path is required in gate mode");
+  const event = inputs.trustedWorkflowEvent.trim() || "pull_request_target";
+  if (!TRUSTED_EVENTS.includes(event)) {
+    throw new Error(
+      `trusted-workflow-event must be one of ${TRUSTED_EVENTS.join(", ")}, got "${event}"`,
+    );
+  }
+  return {
+    apiKey,
+    githubToken: inputs.githubToken,
+    model: inputs.model.trim() || "jev-latest",
+    gateConfigPath: inputs.gateConfigPath.trim() || ".github/jev-gate.json",
+    trustedWorkflow: { path, event },
+    overrideLabel: inputs.overrideLabel.trim() || "jev-gate:override",
+    overrideActors: inputs.overrideActors
+      .split(/[\n,]/)
+      .map((login) => login.trim())
+      .filter((login) => login.length > 0),
+    checkName: inputs.checkName.trim() || "jev-gate",
+    commentAuthor: inputs.commentAuthor.trim() || "github-actions[bot]",
+  };
 }

@@ -93,6 +93,80 @@ from absent answers), and the verdict then reflects only what remains.
 Create a [TypeSafe API key](https://docs.typesafe.ai/introduction/quickstart) and add it as a
 repository or organization secret named `TYPESAFE_API_KEY`.
 
+## Gate mode
+
+`mode: gate` scores the PR's cumulative change against its base branch with the metric gate, posts
+a `jev-gate` check run and a PR comment, and **fails the job** on a failing or neutral verdict. Make
+the gate workflow's *job* the required check, through an org ruleset `workflows` rule. Never require
+the `jev-gate` check run: a neutral check run counts as passing, and any same-repo PR workflow can
+post one under that name.
+
+```yaml
+name: Jev gate
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, labeled]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+  checks: write
+  actions: read
+
+concurrency:
+  group: jev-gate-${{ github.event.pull_request.number }}
+
+jobs:
+  jev-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: voicify/jev-reviewer@v1
+        with:
+          mode: gate
+          typesafe-api-key: ${{ secrets.TYPESAFE_API_KEY }}
+          trusted-workflow-path: .github/workflows/jev-gate.yml
+          override-actors: verygreenboi
+```
+
+The workflow checks out the PR head only so the gate can read its diff with git. It must never run
+the PR's code: no install, build or test steps belong in this job. The action verifies that the
+checkout is the PR head and fails otherwise.
+
+| Permission | Why |
+| --- | --- |
+| `contents: read` | Read the gate config from the base branch |
+| `pull-requests: write` | Post and update the gate comment |
+| `issues: write` | Read the override label's events and remove a stale override label |
+| `checks: write` | Post the `jev-gate` check run |
+| `actions: read` | Find and download earlier gate records, and check which workflow run stored them |
+
+| Input | Default | Description |
+| --- | --- | --- |
+| `mode` | `review` | `review` or `gate` |
+| `gate-config-path` | `.github/jev-gate.json` | Gate config, read from the PR base branch |
+| `trusted-workflow-path` | *(required)* | Workflow path, as workflow runs report it, whose stored records the gate trusts |
+| `trusted-workflow-event` | `pull_request_target` | The only event the gate runs on, and the event a trusted record's run must have |
+| `override-label` | `jev-gate:override` | Label that accepts a neutral result |
+| `override-actors` | *(empty)* | Newline- or comma-separated logins allowed to override; empty means nobody can |
+| `check-name` | `jev-gate` | Name of the posted check run |
+| `comment-author` | `github-actions[bot]` | Login whose gate comment is edited in place |
+
+### The owner override
+
+A neutral verdict blocks the merge unless the override label is on the PR and the **latest**
+`labeled` event for it was made by one of `override-actors`. Both are read live from the API on
+every run, never from the event payload, and any API error refuses the override. Every
+`synchronize` run removes the label before it evaluates, so a present label was always applied
+after the latest push. Applying the label triggers a `labeled` run that reuses the current head's
+stored evaluation, when there is one, without calling Jev, and then accepts the neutral result.
+Re-running a `synchronize` run removes the label again, so it has to be reapplied.
+
 ## Development
 
 Requires [Bun](https://bun.com) ≥ 1.3.

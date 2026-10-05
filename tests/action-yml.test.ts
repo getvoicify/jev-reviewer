@@ -39,7 +39,7 @@ async function inputsReadIn(mode: string): Promise<string[]> {
       },
     },
     env: {},
-    event: {
+    event: () => ({
       name: "pull_request_target",
       payload: {
         action: "opened",
@@ -47,7 +47,7 @@ async function inputsReadIn(mode: string): Promise<string[]> {
       },
       owner: "o",
       repo: "r",
-    },
+    }),
     setFailed: (message) => {
       throw new Error(message);
     },
@@ -95,5 +95,54 @@ describe("action.yml", () => {
     const inputs = await declaredInputs();
     expect(inputs["trusted-workflow-path"]?.description).toBeString();
     expect(inputs["trusted-workflow-path"]?.default).toBeUndefined();
+  });
+});
+
+interface WorkflowStep {
+  uses?: string;
+  run?: string;
+  with?: Record<string, unknown>;
+}
+
+async function gateExample() {
+  const readme = await Bun.file("README.md").text();
+  const section = readme.slice(readme.indexOf("## Gate mode"));
+  const yaml = section.match(/```yaml\n([\s\S]*?)```/)?.[1];
+  if (yaml === undefined) throw new Error("no yaml example in the README's gate mode section");
+  return parseYaml(yaml) as {
+    on: Record<string, { types: string[] }>;
+    permissions: Record<string, string>;
+    jobs: Record<string, { steps: WorkflowStep[] }>;
+  };
+}
+
+describe("the README's gate workflow example", () => {
+  test("runs on pull_request_target for the events the gate handles", async () => {
+    expect((await gateExample()).on).toEqual({
+      pull_request_target: { types: ["opened", "synchronize", "reopened", "labeled"] },
+    });
+  });
+
+  test("grants exactly the permissions gate mode needs", async () => {
+    expect((await gateExample()).permissions).toEqual({
+      contents: "read",
+      "pull-requests": "write",
+      issues: "write",
+      checks: "write",
+      actions: "read",
+    });
+  });
+
+  test("checks out the PR head without credentials and runs no PR scripts", async () => {
+    const steps = Object.values((await gateExample()).jobs).flatMap((job) => job.steps);
+    const checkout = steps.find((step) => step.uses?.startsWith("actions/checkout@"));
+    expect(checkout?.with).toEqual({
+      ref: expect.stringMatching(/^\$\{\{ github\.event\.pull_request\.head\.sha \}\}$/),
+      "fetch-depth": 0,
+      "persist-credentials": false,
+    });
+    expect(steps.filter((step) => step.run !== undefined)).toEqual([]);
+    const gate = steps.find((step) => step.with?.mode === "gate");
+    expect(gate?.with?.["trusted-workflow-path"]).toBeString();
   });
 });

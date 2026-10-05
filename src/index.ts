@@ -1,53 +1,51 @@
+import { tmpdir } from "node:os";
+import { DefaultArtifactClient } from "@actions/artifact";
 import * as core from "@actions/core";
 import * as github from "@actions/github";
 import { Octokit } from "octokit";
 import { runApp } from "./app";
-import { parseConfig } from "./config";
+import { createGitPort } from "./diff/git";
+import { runGate } from "./gate/run";
 import { GitHubClient } from "./github";
 import { JevClient } from "./jev";
+import { main } from "./main";
+import { ArtifactRecordStore } from "./store/artifact-store";
 
-async function run(): Promise<void> {
-  const config = parseConfig(
-    {
-      apiKey: core.getInput("typesafe-api-key"),
-      githubToken: core.getInput("github-token"),
-      model: core.getInput("model"),
-      comment: core.getInput("comment"),
-      failOn: core.getInput("fail-on"),
-      minConfidence: core.getInput("min-confidence"),
-      maxFiles: core.getInput("max-files"),
-      maxChunkChars: core.getInput("max-chunk-chars"),
-      ignorePaths: core.getMultilineInput("ignore-paths"),
-      questionsFile: core.getInput("questions-file"),
-    },
-    process.env,
-  );
+const env = process.env;
 
-  // SAFETY: webhook payloads vary by event; we only read the PR number and
-  // base branch and fail with a clear message when the event is not pull_request.
-  const payload = github.context.payload as {
-    pull_request?: { number: number; base?: { ref: string } };
-  };
-  const prNumber = payload.pull_request?.number ?? github.context.issue.number;
-  const baseRef = payload.pull_request?.base?.ref ?? "main";
-  if (!prNumber) throw new Error("Not a pull request event: no PR number in context");
-
-  const octokit = new Octokit({ auth: config.githubToken });
-
-  await runApp({
-    config,
-    githubPort: new GitHubClient(octokit),
-    jev: new JevClient({ apiKey: config.apiKey }),
-    context: {
-      owner: github.context.repo.owner,
-      repo: github.context.repo.repo,
-      prNumber,
-      baseRef,
-    },
-    io: { setOutput: core.setOutput, fail: core.setFailed, info: core.info },
-  });
-}
-
-run().catch((err: unknown) => {
-  core.setFailed(err instanceof Error ? err.message : String(err));
+await main({
+  inputs: { get: core.getInput, getMultiline: core.getMultilineInput },
+  env,
+  event: () => ({
+    name: github.context.eventName,
+    payload: github.context.payload,
+    owner: github.context.repo.owner,
+    repo: github.context.repo.repo,
+  }),
+  setFailed: core.setFailed,
+  review: (config, context) =>
+    runApp({
+      config,
+      githubPort: new GitHubClient(new Octokit({ auth: config.githubToken })),
+      jev: new JevClient({ apiKey: config.apiKey }),
+      context,
+      io: { setOutput: core.setOutput, fail: core.setFailed, info: core.info },
+    }),
+  gate: (config, context) => {
+    const octokit = new Octokit({ auth: config.githubToken });
+    return runGate({
+      context,
+      settings: config,
+      git: createGitPort(env.GITHUB_WORKSPACE || process.cwd()),
+      github: new GitHubClient(octokit, core.warning),
+      records: new ArtifactRecordStore(
+        octokit,
+        new DefaultArtifactClient(),
+        config.githubToken,
+        env.RUNNER_TEMP || tmpdir(),
+      ),
+      jev: new JevClient({ apiKey: config.apiKey }),
+      io: { info: core.info, warning: core.warning, fail: core.setFailed },
+    });
+  },
 });
