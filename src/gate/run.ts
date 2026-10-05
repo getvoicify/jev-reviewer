@@ -290,26 +290,28 @@ async function scoreParts(
 }
 
 async function loadPrevious(deps: GateDeps, settings: Settings) {
-  const { context, records, io } = deps;
-  const sha = recordLookupSha(context);
-  if (sha === null || !COMMIT_SHA.test(sha)) return null;
+  const { context, io } = deps;
   try {
-    return await loadPreviousRecord(records, {
-      owner: context.owner,
-      repo: context.repo,
-      sha,
-      trustedWorkflow: settings.trustedWorkflow,
-    });
+    return (
+      (await loadRecordOf(deps, settings, context.headSha)) ??
+      (context.eventAction === "synchronize"
+        ? await loadRecordOf(deps, settings, context.beforeSha)
+        : null)
+    );
   } catch (error) {
     io.warning(`Could not load the previous gate record, so scoring afresh: ${messageOf(error)}`);
     return null;
   }
 }
 
-function recordLookupSha(context: GateContext): string | null {
-  if (context.eventAction === "labeled") return context.headSha;
-  if (context.eventAction === "synchronize") return context.beforeSha;
-  return null;
+async function loadRecordOf(deps: GateDeps, settings: Settings, sha: string | null) {
+  if (sha === null || !COMMIT_SHA.test(sha)) return null;
+  return loadPreviousRecord(deps.records, {
+    owner: deps.context.owner,
+    repo: deps.context.repo,
+    sha,
+    trustedWorkflow: settings.trustedWorkflow,
+  });
 }
 
 async function save(deps: GateDeps, record: EvaluationRecord): Promise<boolean> {
@@ -392,8 +394,7 @@ function appliedByOverrideActor(context: GateContext, settings: Settings): boole
   return (
     context.eventAction === "labeled" &&
     context.triggerLabel === settings.overrideLabel &&
-    context.sender !== null &&
-    settings.overrideActors.includes(context.sender)
+    settings.overrideActors.some((actor) => actor === context.sender)
   );
 }
 

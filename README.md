@@ -126,7 +126,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
           persist-credentials: false
-      - uses: voicify/jev-reviewer@v1
+      - uses: getvoicify/jev-reviewer@39496e9702f333596bd5ac029d99458ef090ca79
         with:
           mode: gate
           typesafe-api-key: ${{ secrets.TYPESAFE_API_KEY }}
@@ -134,7 +134,9 @@ jobs:
           override-actors: verygreenboi
 ```
 
-The workflow checks out the PR head only so the gate can read its diff with git. It must never run
+Pin the action to the full commit SHA of the release tag you adopt. The SHA above is the `v1` tag,
+which predates gate mode; replace it with the SHA of the first release tag that includes it. The workflow checks out the PR head only so the
+gate can read its diff with git. It must never run
 the PR's code: no install, build or test steps belong in this job. The action verifies that the
 checkout is the PR head and fails otherwise.
 
@@ -151,7 +153,7 @@ checkout is the PR head and fails otherwise.
 | `mode` | `review` | `review` or `gate` |
 | `gate-config-path` | `.github/jev-gate.json` | Gate config, read from the PR base branch |
 | `trusted-workflow-path` | *(required)* | Workflow path, as workflow runs report it, whose stored records the gate trusts |
-| `trusted-workflow-event` | `pull_request_target` | The only event the gate runs on, and the event a trusted record's run must have |
+| `trusted-workflow-event` | `pull_request_target` | The only event the gate runs on, and the event a trusted record's run must have. Only `pull_request_target` is accepted: under `pull_request` a PR's own copy of the workflow could upload forged records |
 | `override-label` | `jev-gate:override` | Label that accepts a neutral result |
 | `override-actors` | *(empty)* | Newline- or comma-separated logins allowed to override; empty means nobody can |
 | `check-name` | `jev-gate` | Name of the posted check run |

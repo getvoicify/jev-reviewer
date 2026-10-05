@@ -137,7 +137,7 @@ function renderSummary(input: GateReportInput): string {
     provenance,
     "",
     `Partitions scored: ${input.partitions} · Excluded files: ${input.excludedCount} · Oversized files: ${input.oversizedFiles.length}`,
-    `Model: ${inline(input.model)} · Head: ${inline(input.head.slice(0, 7))}`,
+    `Model: ${inline(input.model)} · Head: \`${inline(input.head)}\``,
   ].join("\n");
 }
 

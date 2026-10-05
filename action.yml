@@ -73,8 +73,9 @@ inputs:
     required: false
   trusted-workflow-event:
     description: >-
-      Gate mode. The event the gate runs on and trusts records from:
-      pull_request_target or pull_request.
+      Gate mode. The event the gate runs on and trusts records from.
+      Only pull_request_target is accepted: under pull_request a PR's own
+      copy of the workflow could upload forged records.
     required: false
     default: pull_request_target
   override-label:

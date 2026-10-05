@@ -119,7 +119,6 @@ export interface GateModeConfig {
 }
 
 const MODES: readonly Mode[] = ["review", "gate"];
-const TRUSTED_EVENTS: readonly string[] = ["pull_request_target", "pull_request"];
 
 export function parseMode(value: string): Mode {
   const mode = value.trim() || "review";
@@ -137,10 +136,8 @@ export function parseGateInputs(
   const path = inputs.trustedWorkflowPath.trim();
   if (!path) throw new Error("trusted-workflow-path is required in gate mode");
   const event = inputs.trustedWorkflowEvent.trim() || "pull_request_target";
-  if (!TRUSTED_EVENTS.includes(event)) {
-    throw new Error(
-      `trusted-workflow-event must be one of ${TRUSTED_EVENTS.join(", ")}, got "${event}"`,
-    );
+  if (event !== "pull_request_target") {
+    throw new Error(`trusted-workflow-event must be pull_request_target, got "${event}"`);
   }
   return {
     apiKey,
