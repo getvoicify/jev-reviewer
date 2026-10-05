@@ -14,8 +14,13 @@ export type EvaluationPlan =
   | { kind: "score"; previousEvaluation: Evaluation | null };
 
 export function planEvaluation(
-  _current: CurrentDiff,
-  _previous: EvaluationRecord | null,
+  current: CurrentDiff,
+  previous: EvaluationRecord | null,
 ): EvaluationPlan {
-  return { kind: "empty" };
+  if (current.patchId === null) return { kind: "empty" };
+  if (previous === null || previous.evaluator !== current.evaluator) {
+    return { kind: "score", previousEvaluation: null };
+  }
+  if (previous.patchId === current.patchId) return { kind: "reuse", record: previous };
+  return { kind: "score", previousEvaluation: previous.evaluation };
 }

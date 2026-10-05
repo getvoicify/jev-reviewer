@@ -118,12 +118,24 @@ export class GitHubClient implements GitHubPort, CheckRunReader {
   }
 
   async listCheckRuns(
-    _owner: string,
-    _repo: string,
-    _sha: string,
-    _name: string,
+    owner: string,
+    repo: string,
+    sha: string,
+    name: string,
   ): Promise<ListedCheckRun[]> {
-    return [];
+    const runs = await this.#octokit.paginate(this.#octokit.rest.checks.listForRef, {
+      owner,
+      repo,
+      ref: sha,
+      check_name: name,
+      filter: "all",
+    });
+    return runs.map((run) => ({
+      appSlug: run.app?.slug ?? null,
+      status: run.status,
+      completedAt: run.completed_at,
+      outputText: run.output.text,
+    }));
   }
 
   async createCheckRun(owner: string, repo: string, params: CheckRunParams): Promise<void> {
