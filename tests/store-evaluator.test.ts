@@ -132,6 +132,7 @@ describe("evaluatorFingerprint over the gate config", () => {
     ["an exclude list is given", { exclude: ["generated/**"] }],
     ["limitTokens moves", { limitTokens: 16000 }],
     ["reservedTokens moves", { reservedTokens: 2000 }],
+    ["a changed-line cap is set", { maxChangedLines: 400 }],
   ];
 
   for (const [change, overrides] of variants) {
@@ -141,6 +142,18 @@ describe("evaluatorFingerprint over the gate config", () => {
       );
     });
   }
+
+  test("keeps the hash an uncapped default config had before maxChangedLines existed", () => {
+    expect(evaluatorFingerprint("jev-latest", defaults)).toBe(
+      "9dfe2b931d8acff6724f47eb8f445adb00e5e2718fc6128f5fb8b2507d871e79",
+    );
+  });
+
+  test("changes when the changed-line cap moves", () => {
+    expect(evaluatorFingerprint("jev-latest", gate({ maxChangedLines: 400 }))).not.toBe(
+      evaluatorFingerprint("jev-latest", gate({ maxChangedLines: 401 })),
+    );
+  });
 
   test("treats the exclude list as ordered, so the same globs in another order are another config", () => {
     expect(evaluatorFingerprint("jev-latest", gate({ exclude: ["a/**", "b/**"] }))).not.toBe(

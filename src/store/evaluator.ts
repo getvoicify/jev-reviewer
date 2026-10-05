@@ -25,6 +25,7 @@ function verdictShapingConfig(gate: GateConfig) {
     exclude: gate.exclude ?? DEFAULT_EXCLUDE_GLOBS,
     limitTokens: gate.limitTokens,
     reservedTokens: gate.reservedTokens,
+    maxChangedLines: gate.maxChangedLines,
   };
 }
 

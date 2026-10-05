@@ -26,7 +26,7 @@ import {
   renderCheckOutput,
   renderComment,
 } from "./report";
-import { decideVerdict, OVERSIZED_REASON, type Verdict } from "./verdict";
+import { decideVerdict, OVERSIZED_REASON, prTooLargeReason, type Verdict } from "./verdict";
 
 export const FIXED_TASK =
   "Review this pull request's cumulative change against its base branch. Judge only the code in the diff.";
@@ -97,6 +97,7 @@ type Outcome = {
   excludedCount: number;
   record?: EvaluationRecord;
   carried?: RecordOverride;
+  size?: { changedLines: number; limit: number };
 };
 
 const UNAVAILABLE_CODES: readonly JevErrorCode[] = ["api_error", "connection", "timeout"];
@@ -211,6 +212,19 @@ async function decide(deps: GateDeps, settings: Settings): Promise<Outcome> {
   }
 
   const diff = cumulativeDiff(git, { baseRef: context.baseRef, exclude: config.exclude });
+  const size =
+    config.maxChangedLines === undefined
+      ? undefined
+      : { changedLines: changedLines(diff.files), limit: config.maxChangedLines };
+  if (size !== undefined) io.info(`changed lines: ${size.changedLines} (limit ${size.limit})`);
+  if (size !== undefined && size.changedLines > size.limit) {
+    logSaved(io, false);
+    return settled("neutral", prTooLargeReason(size.changedLines, size.limit), {
+      config,
+      excludedCount: diff.excluded.length,
+      size,
+    });
+  }
   const partitions = partition(diff.files, config);
   const flags = gateFlags(diff, partitions);
   const evaluator = evaluatorFingerprint(settings.model, config);
@@ -223,7 +237,7 @@ async function decide(deps: GateDeps, settings: Settings): Promise<Outcome> {
   io.info(`plan: ${plan.kind}`);
   io.info(`partitions: ${partitions.length} (${partitions.length - scorable.length} oversized)`);
   const carried = plan.kind === "reuse" ? plan.record.override : undefined;
-  const shared = { config, partitions, excludedCount: diff.excluded.length, carried };
+  const shared = { config, partitions, excludedCount: diff.excluded.length, carried, size };
 
   if (plan.kind === "empty") {
     logSaved(io, false);
@@ -280,7 +294,7 @@ async function decide(deps: GateDeps, settings: Settings): Promise<Outcome> {
   };
 }
 
-function changedLines(files: DiffFile[]): number {
+export function changedLines(files: DiffFile[]): number {
   return files.reduce((sum, file) => sum + file.added + file.deleted, 0);
 }
 
@@ -367,6 +381,7 @@ async function report(
     model: settings.model,
     head: context.headSha,
     overriddenBy: override?.actor,
+    size: outcome.size,
   };
   const params: GateCheckRunParams = {
     name: settings.checkName,

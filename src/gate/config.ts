@@ -17,12 +17,15 @@ const gateFileSchema = z
     exclude: z.array(z.string()).optional(),
     limitTokens: z.number().int().positive().optional(),
     reservedTokens: z.number().int().nonnegative().optional(),
+    maxChangedLines: z.number().int().positive().optional(),
   })
   .strict();
 
 type GateFile = z.infer<typeof gateFileSchema>;
 
-export type GateConfig = Required<Omit<GateFile, "exclude">> & Pick<GateFile, "exclude">;
+type OptionalKeys = "exclude" | "maxChangedLines";
+
+export type GateConfig = Required<Omit<GateFile, OptionalKeys>> & Pick<GateFile, OptionalKeys>;
 
 export class GateConfigError extends Error {
   constructor(message: string) {

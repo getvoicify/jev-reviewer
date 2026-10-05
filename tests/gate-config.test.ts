@@ -52,6 +52,11 @@ describe("parseGateConfig", () => {
     expect(parseGateConfig(file(full))).toEqual(full);
   });
 
+  test("caps nothing unless the file sets maxChangedLines", () => {
+    expect(parseGateConfig(null).maxChangedLines).toBeUndefined();
+    expect(parseGateConfig(file({ version: 1, maxChangedLines: 400 })).maxChangedLines).toBe(400);
+  });
+
   test("does not hand out a shared defaults object that a caller could mutate", () => {
     const config = parseGateConfig(null);
     config.gated.correctness = 1;
@@ -65,6 +70,7 @@ describe("parseGateConfig", () => {
     ["minConfidence 1", { minConfidence: 1 }],
     ["advisoryFloor 1", { advisoryFloor: 1 }],
     ["advisoryFloor 10", { advisoryFloor: 10 }],
+    ["maxChangedLines 1", { maxChangedLines: 1 }],
   ])("accepts the boundary value %s", (_name, fields) => {
     expect(() => parseGateConfig(file({ version: 1, ...fields }))).not.toThrow();
   });
@@ -98,6 +104,22 @@ describe("parseGateConfig", () => {
       ["a zero limitTokens", file({ version: 1, limitTokens: 0 }), /limitTokens: /],
       ["a negative reservedTokens", file({ version: 1, reservedTokens: -1 }), /reservedTokens/],
       ["a non-string exclude pattern", file({ version: 1, exclude: [3] }), /exclude/],
+      ["a zero maxChangedLines", file({ version: 1, maxChangedLines: 0 }), /maxChangedLines: /],
+      [
+        "a negative maxChangedLines",
+        file({ version: 1, maxChangedLines: -400 }),
+        /maxChangedLines: /,
+      ],
+      [
+        "a non-integer maxChangedLines",
+        file({ version: 1, maxChangedLines: 400.5 }),
+        /maxChangedLines: /,
+      ],
+      [
+        "a string maxChangedLines",
+        file({ version: 1, maxChangedLines: "400" }),
+        /maxChangedLines: /,
+      ],
       ["an empty gated map", file({ version: 1, gated: {} }), /gated/],
       ["a __proto__ key in gated", '{"version":1,"gated":{"__proto__":7}}', /__proto__/],
       ["a constructor key in gated", '{"version":1,"gated":{"constructor":7}}', /constructor/],

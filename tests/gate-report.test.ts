@@ -222,6 +222,22 @@ describe("renderCheckOutput summary", () => {
     );
   });
 
+  test("says nothing was scored, rather than scored fresh, when the verdict carries no metrics", () => {
+    const unscored = input({ verdict: { conclusion: "neutral", metrics: [], reasons: ["x"] } });
+    for (const out of [renderCheckOutput(unscored).summary, renderComment(unscored)]) {
+      expect(out).toContain("Nothing was scored for this push.");
+      expect(out).not.toMatch(/scored fresh/i);
+    }
+  });
+
+  test("replaces the metric table with a line when nothing was scored", () => {
+    const unscored = input({ verdict: { conclusion: "neutral", metrics: [], reasons: ["x"] } });
+    for (const out of [renderCheckOutput(unscored).text, renderComment(unscored)]) {
+      expect(out).toContain("No metrics were scored.");
+      expect(out).not.toContain("| Metric |");
+    }
+  });
+
   test("says nothing about reuse for a fresh score", () => {
     const fresh = renderCheckOutput(input({ reused: false })).summary;
     expect(fresh).not.toMatch(/reused/i);
@@ -235,6 +251,18 @@ describe("renderCheckOutput summary", () => {
     expect(summary).toContain("Partitions scored: 4");
     expect(summary).toContain("Excluded files: 2");
     expect(summary).toContain("Oversized files: 3");
+  });
+
+  test("shows the changed lines in reviewed files against the limit in the check and the comment", () => {
+    const capped = input({ size: { changedLines: 539, limit: 400 } });
+    const line = "Changed lines in reviewed files: 539 · Limit: 400";
+    expect(renderCheckOutput(capped).summary).toContain(line);
+    expect(renderComment(capped)).toContain(line);
+  });
+
+  test("says nothing about changed lines when no limit is configured", () => {
+    expect(renderCheckOutput(input()).summary).not.toContain("Changed lines");
+    expect(renderComment(input())).not.toContain("Changed lines");
   });
 
   test("names the model and the full evaluated head in the check and the comment", () => {
