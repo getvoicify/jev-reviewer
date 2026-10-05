@@ -96,6 +96,7 @@ type Outcome = {
 const UNAVAILABLE_CODES: readonly JevErrorCode[] = ["api_error", "connection", "timeout"];
 const SALVAGEABLE_SAVE_STATUS = 409;
 const ANNOTATIONS_REJECTED_STATUS = 422;
+const PUSH_ACTIONS: readonly string[] = ["synchronize", "reopened"];
 const COMMIT_SHA = /^(?!0{40}$)[0-9a-f]{40}$/;
 
 const NO_EVALUATION: Evaluation = {
@@ -160,7 +161,7 @@ export async function runGate(deps: GateDeps): Promise<void> {
 
 async function clearStaleOverride(deps: GateDeps, settings: Settings): Promise<boolean> {
   const { context, github, io } = deps;
-  if (context.eventAction !== "synchronize") return true;
+  if (!PUSH_ACTIONS.includes(context.eventAction)) return true;
   try {
     await github.removeLabel(context.owner, context.repo, context.prNumber, settings.overrideLabel);
     io.info(`removed the "${settings.overrideLabel}" label, so no earlier push's override applies`);

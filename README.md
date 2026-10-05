@@ -162,8 +162,9 @@ checkout is the PR head and fails otherwise.
 A neutral verdict blocks the merge unless the override label is on the PR and the **latest**
 `labeled` event for it was made by one of `override-actors`. Both are read live from the API on
 every run, never from the event payload, and any API error refuses the override. Every
-`synchronize` run removes the label before it evaluates, so a present label was always applied
-after the latest push. Applying the label triggers a `labeled` run that reuses the current head's
+`synchronize` and `reopened` run removes the label before it evaluates, so a present label was
+always applied after the latest push. A reopen counts because commits can be pushed while the PR is
+closed. Applying the label triggers a `labeled` run that reuses the current head's
 stored evaluation, when there is one, without calling Jev, and then accepts the neutral result.
 Re-running a `synchronize` run removes the label again, so it has to be reapplied.
 
