@@ -25,12 +25,14 @@ describe("gateFlags codeChanged", () => {
     ["a .markdown file", "notes.markdown"],
     ["a reStructuredText file", "api/index.rst"],
     ["an AsciiDoc file", "manual.adoc"],
-    ["anything under the top-level docs directory", "docs/architecture.drawio"],
+    ["a Markdown guide under docs", "docs/guide.md"],
     ["a LICENSE at the root", "LICENSE"],
     ["a LICENSE in a package", "packages/core/LICENSE"],
-    ["a LICENSE with a suffix", "LICENSE.apache"],
-    ["a CHANGELOG without an extension", "packages/core/CHANGELOG"],
-    ["an issue template", ".github/ISSUE_TEMPLATE/bug.yml"],
+    ["a CHANGELOG at the root", "CHANGELOG"],
+    ["a CHANGELOG in a package", "packages/core/CHANGELOG"],
+    ["a YAML issue form", ".github/ISSUE_TEMPLATE/bug.yml"],
+    ["a .yaml issue form", ".github/ISSUE_TEMPLATE/forms/feature.yaml"],
+    ["a Markdown issue template", ".github/ISSUE_TEMPLATE/question.md"],
     ["a Markdown file inside a dot directory", ".changeset/brave-fox.md"],
   ];
 
@@ -46,6 +48,11 @@ describe("gateFlags codeChanged", () => {
     ["JSON", "package.json"],
     ["SQL", "migrations/001_init.sql"],
     ["a file with no extension", "Makefile"],
+    ["Python configuration under docs", "docs/conf.py"],
+    ["a component under docs", "docs/src/Home.tsx"],
+    ["a source file named CHANGELOG", "src/CHANGELOG.ts"],
+    ["a script named LICENSE", "LICENSE.js"],
+    ["a script among the issue templates", ".github/ISSUE_TEMPLATE/config.js"],
     ["a Python dependency list", "requirements.txt"],
     ["a CMake build input", "native/CMakeLists.txt"],
     ["any other plain text file", "notes/todo.txt"],
@@ -83,7 +90,7 @@ describe("gateFlags codeChanged", () => {
   });
 
   test("counts several documentation files as documentation only", () => {
-    expect(codeChanged(file("README.md"), file("LICENSE"), file("docs/x.png"))).toBe(false);
+    expect(codeChanged(file("README.md"), file("LICENSE"), file("docs/x.md"))).toBe(false);
   });
 
   test("reports no code change for an empty file list", () => {
