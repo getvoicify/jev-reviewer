@@ -93,9 +93,7 @@ describe("gateFlags oversized", () => {
   const files = [file("src/a.ts"), file("src/b.ts")];
 
   test("is set when any partition is oversized", () => {
-    expect(gateFlags({ files }, [part([files[0]!]), part([files[1]!], true)]).oversized).toBe(
-      true,
-    );
+    expect(gateFlags({ files }, [part([files[0]!]), part([files[1]!], true)]).oversized).toBe(true);
   });
 
   test("is clear when no partition is oversized", () => {
@@ -108,7 +106,11 @@ describe("gateFlags oversized", () => {
 });
 
 describe("gateFlags recomputed on reuse", () => {
-  const scored = (score: number): MetricEvaluation => ({ applicable: true, score, confidence: 0.9 });
+  const scored = (score: number): MetricEvaluation => ({
+    applicable: true,
+    score,
+    confidence: 0.9,
+  });
 
   function evaluation(metrics: Partial<Record<MetricKey, MetricEvaluation>>): Evaluation {
     const all = Object.fromEntries(
@@ -144,7 +146,10 @@ describe("gateFlags recomputed on reuse", () => {
       const decide = (diffFiles: DiffFile[]) => {
         const partitions = partition(diffFiles, budget);
         const flags = gateFlags({ files: diffFiles }, partitions);
-        const parts = partitions.map((p) => ({ evaluation: scoredAs, changedLines: p.files.length }));
+        const parts = partitions.map((p) => ({
+          evaluation: scoredAs,
+          changedLines: p.files.length,
+        }));
         return { flags, verdict: decideVerdict(parts, budget, flags) };
       };
 
@@ -163,8 +168,8 @@ describe("gateFlags recomputed on reuse", () => {
 
     expect(flags).toEqual({ oversized: true, codeChanged: true });
     expect(decideVerdict(parts, budget, flags).conclusion).toBe("neutral");
-    expect(
-      decideVerdict(parts, budget, { oversized: false, codeChanged: false }).conclusion,
-    ).toBe("success");
+    expect(decideVerdict(parts, budget, { oversized: false, codeChanged: false }).conclusion).toBe(
+      "success",
+    );
   });
 });
