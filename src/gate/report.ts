@@ -13,6 +13,7 @@ export const GATE_COMMENT_MARKER = "<!-- jev-gate -->";
 export const GATE_OUTPUT_LIMIT = 65_000;
 
 const TITLE_LIMIT = 100;
+const ANNOTATION_MESSAGE_LIMIT = 60_000;
 const MAX_LISTED_ISSUES = 20;
 const FLAGGED_ORDER: readonly MetricStatus[] = ["fail", "inconclusive", "warn"];
 
@@ -45,16 +46,21 @@ const LABELS = new Map(metricDefinitions.map((definition) => [definition.key, de
 
 const labelOf = (key: MetricKey): string => LABELS.get(key) ?? key;
 
-function neutralise(value: string): string {
-  return value.replaceAll("<!--", "&lt;!--");
-}
-
 function inline(value: string): string {
-  return neutralise(value.replace(/\r?\n|\r/g, " "));
+  return value
+    .replace(/\r?\n|\r/g, " ")
+    .replaceAll("<", "&lt;")
+    .replaceAll("`", "&#96;")
+    .replace(/@(?=\w)/g, "&#64;");
 }
 
 export function markdownCell(value: string): string {
-  return inline(value).replaceAll("|", "\\|");
+  return inline(value).replaceAll("\\", "\\\\").replaceAll("|", "\\|");
+}
+
+function capCodePoints(value: string, limit: number): string {
+  const points = Array.from(value);
+  return points.length > limit ? `${points.slice(0, limit - 1).join("")}…` : value;
 }
 
 export function renderCheckOutput(input: GateReportInput): GateCheckOutput {
@@ -83,12 +89,15 @@ export function buildGateAnnotations(verdict: Verdict, evaluation: Evaluation): 
       verdict.reasons.find((candidate) => candidate.startsWith(`${entry.metric} `)) ??
       `${labelOf(entry.metric)}: ${STATUS_WORDS[entry.status]}`;
     return {
-      path: ".",
+      path: ".github",
       start_line: 1,
       end_line: 1,
       annotation_level: entry.status === "fail" ? "warning" : "notice",
       title: `${labelOf(entry.metric)} (${STATUS_WORDS[entry.status]})`,
-      message: inline(suggestion === undefined ? reason : `${reason}. ${suggestion}`),
+      message: capCodePoints(
+        inline(suggestion === undefined ? reason : `${reason}. ${suggestion}`),
+        ANNOTATION_MESSAGE_LIMIT,
+      ),
     };
   });
 }
@@ -107,7 +116,7 @@ function renderTitle(verdict: Verdict): string {
       : first === undefined
         ? `Jev gate: ${verdict.conclusion}`
         : `Jev gate: ${verdict.conclusion} — ${inline(first)}`;
-  return title.length > TITLE_LIMIT ? `${title.slice(0, TITLE_LIMIT - 1)}…` : title;
+  return capCodePoints(title, TITLE_LIMIT);
 }
 
 function renderSummary(input: GateReportInput): string {
@@ -128,7 +137,7 @@ function renderSummary(input: GateReportInput): string {
     provenance,
     "",
     `Partitions scored: ${input.partitions} · Excluded files: ${input.excludedCount} · Oversized files: ${input.oversizedFiles.length}`,
-    `Model: \`${inline(input.model)}\` · Head: \`${inline(input.head.slice(0, 7))}\``,
+    `Model: ${inline(input.model)} · Head: ${inline(input.head.slice(0, 7))}`,
   ].join("\n");
 }
 
@@ -138,7 +147,7 @@ function renderTable(input: GateReportInput): string {
     row([
       labelOf(entry.metric),
       entry.gated ? "✓" : "",
-      entry.score === null ? "—" : entry.score.toFixed(1),
+      entry.score === null ? "—" : entry.score.toFixed(2),
       entry.confidence === null ? "—" : entry.confidence.toFixed(2),
       entry.gated ? String(entry.minimum ?? "—") : `${input.advisoryFloor} (floor)`,
       STATUS_WORDS[entry.status],
@@ -157,7 +166,8 @@ function row(cells: string[]): string {
 }
 
 function renderDelta(entry: ComparisonEntry | undefined): string {
-  if (entry === undefined || entry.direction === "unchanged") return "·";
+  if (entry === undefined) return "—";
+  if (entry.direction === "unchanged") return "·";
   const sign = entry.delta > 0 ? "+" : "";
   return `${entry.direction === "improved" ? "↑" : "↓"} ${sign}${entry.delta.toFixed(1)}`;
 }
