@@ -774,6 +774,21 @@ describe("runGate: exit", () => {
     expect(io.failures).toEqual(["evaluator unavailable: connection"]);
   });
 
+  test("fails a neutral result when the owner removes the override label, reusing the head's record", async () => {
+    const { io, jev, github, check } = await run({
+      previous: previousRecord({ head: HEAD }),
+      files: [{ path: "src/app.ts" }, { path: "gradle/wrapper/gradle-wrapper.jar" }],
+      approved: false,
+      context: { ...labeledBy(OWNER), eventAction: "unlabeled" },
+      settings: OWNER_ACTORS,
+    });
+    expect(jev.requests).toHaveLength(0);
+    expect(check.conclusion).toBe("neutral");
+    expect(io.failures).toEqual([`${UNREVIEWED_EXCLUDED_REASON}: 1`]);
+    expect(github.overrideQueries).toEqual([]);
+    expect(github.removedLabels).toEqual([]);
+  });
+
   for (const eventAction of ["synchronize", "opened", "reopened"]) {
     test(`fails a neutral ${eventAction} run even with the override label present`, async () => {
       const { io, github } = await run({

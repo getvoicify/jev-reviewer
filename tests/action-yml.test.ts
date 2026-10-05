@@ -119,7 +119,9 @@ async function gateExample() {
 describe("the README's gate workflow example", () => {
   test("runs on pull_request_target for the events the gate handles", async () => {
     expect((await gateExample()).on).toEqual({
-      pull_request_target: { types: ["opened", "synchronize", "reopened", "labeled"] },
+      pull_request_target: {
+        types: ["opened", "synchronize", "reopened", "labeled", "unlabeled"],
+      },
     });
   });
 
