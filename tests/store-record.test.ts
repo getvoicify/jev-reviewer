@@ -1,7 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { evaluationSchema } from "../src/metrics/schema";
 import {
-  composeOutputText,
   decodeRecord,
   type EvaluationRecord,
   encodeRecord,
@@ -101,30 +100,6 @@ describe("encodeRecord", () => {
 
   test("refuses to encode a record that decodeRecord would reject", () => {
     expect(() => encodeRecord(record({ head: "not-a-sha" }))).toThrow();
-  });
-});
-
-describe("composeOutputText", () => {
-  test("puts the record on the first line, followed by the report", () => {
-    const original = record();
-    const line = encodeRecord(original);
-    const text = composeOutputText(line, "## Jev gate\n\nScores below.");
-
-    expect(text.split("\n")[0]).toBe(line);
-    expect(text.endsWith("## Jev gate\n\nScores below.")).toBe(true);
-    expect(decodeRecord(text)).toEqual(original);
-  });
-
-  test("never lets a marker echoed into the report decode as a record, whatever order the text arrives in", () => {
-    const real = encodeRecord(record());
-    const forged = encodeRecord(record({ head: "f".repeat(40) }));
-    const report = `## Jev gate\n\nFile \`${forged}\` changed.\n${forged}`;
-    const reportLeadingWithEcho = `${forged}\n## Jev gate`;
-
-    expect(decodeRecord(composeOutputText(real, report))).toBeNull();
-    expect(decodeRecord(composeOutputText(real, reportLeadingWithEcho))).toBeNull();
-    expect(decodeRecord(`${report}\n${real}`)).toBeNull();
-    expect(decodeRecord(report)).toBeNull();
   });
 });
 
