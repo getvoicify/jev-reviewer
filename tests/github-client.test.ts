@@ -125,6 +125,7 @@ describe("GitHubClient.upsertComment", () => {
 
 interface ListedRun {
   app: { slug: string } | null;
+  check_suite?: { id: number } | null;
   status: string;
   completed_at: string | null;
   output: { text: string | null };
@@ -161,15 +162,23 @@ describe("GitHubClient.listCheckRuns", () => {
     ]);
   });
 
-  test("maps each run to its app slug, status, completion time and output text", async () => {
+  test("maps each run to its app slug, check suite, status, completion time and output text", async () => {
     const { octokit } = fakeChecksOctokit([
       {
         app: { slug: "github-actions" },
+        check_suite: { id: 4242 },
         status: "completed",
         completed_at: "2026-10-05T10:00:00Z",
         output: { text: "record" },
       },
-      { app: null, status: "in_progress", completed_at: null, output: { text: null } },
+      {
+        app: null,
+        check_suite: null,
+        status: "in_progress",
+        completed_at: null,
+        output: { text: null },
+      },
+      { app: null, status: "queued", completed_at: null, output: { text: null } },
     ]);
 
     const runs = await new GitHubClient(octokit).listCheckRuns("o", "r", "abc123", "jev-gate");
@@ -177,11 +186,69 @@ describe("GitHubClient.listCheckRuns", () => {
     expect(runs).toEqual([
       {
         appSlug: "github-actions",
+        checkSuiteId: 4242,
         status: "completed",
         completedAt: "2026-10-05T10:00:00Z",
         outputText: "record",
       },
-      { appSlug: null, status: "in_progress", completedAt: null, outputText: null },
+      {
+        appSlug: null,
+        checkSuiteId: null,
+        status: "in_progress",
+        completedAt: null,
+        outputText: null,
+      },
+      { appSlug: null, checkSuiteId: null, status: "queued", completedAt: null, outputText: null },
     ]);
+  });
+});
+
+function fakeActionsOctokit(workflowRuns: Array<Record<string, unknown>>): {
+  octokit: Octokit;
+  requests: unknown[];
+} {
+  const requests: unknown[] = [];
+  const octokit = {
+    rest: {
+      actions: {
+        listWorkflowRunsForRepo: async (params: unknown) => {
+          requests.push(params);
+          return { data: { total_count: workflowRuns.length, workflow_runs: workflowRuns } };
+        },
+      },
+    },
+  } as unknown as Octokit;
+  return { octokit, requests };
+}
+
+describe("GitHubClient.workflowRunForCheckSuite", () => {
+  test("asks for the single workflow run behind the check suite", async () => {
+    const { octokit, requests } = fakeActionsOctokit([]);
+
+    await new GitHubClient(octokit).workflowRunForCheckSuite("o", "r", 4242);
+
+    expect(requests).toEqual([{ owner: "o", repo: "r", check_suite_id: 4242, per_page: 1 }]);
+  });
+
+  test("returns the workflow file path and triggering event of that run", async () => {
+    const { octokit } = fakeActionsOctokit([
+      {
+        id: 1,
+        path: ".github/workflows/jev-gate.yml",
+        event: "pull_request_target",
+        name: "Jev gate",
+      },
+    ]);
+
+    expect(await new GitHubClient(octokit).workflowRunForCheckSuite("o", "r", 4242)).toEqual({
+      path: ".github/workflows/jev-gate.yml",
+      event: "pull_request_target",
+    });
+  });
+
+  test("returns null when no workflow run belongs to the check suite", async () => {
+    const { octokit } = fakeActionsOctokit([]);
+
+    expect(await new GitHubClient(octokit).workflowRunForCheckSuite("o", "r", 4242)).toBeNull();
   });
 });

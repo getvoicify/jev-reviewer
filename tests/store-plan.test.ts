@@ -37,10 +37,35 @@ describe("planEvaluation", () => {
     expect(planEvaluation(current({ patchId: null }), null)).toEqual({ kind: "empty" });
   });
 
-  test("reuses the previous record when a rebase left the patch id and evaluator unchanged", () => {
+  test("reuses the previous evaluation when a rebase left the patch id and evaluator unchanged", () => {
     const record = previous();
 
-    expect(planEvaluation(current(), record)).toEqual({ kind: "reuse", record });
+    expect(planEvaluation(current(), record)).toEqual({
+      kind: "reuse",
+      record: {
+        version: 1,
+        head: "1".repeat(40),
+        mergeBase: "2".repeat(40),
+        patchId: PATCH_ID,
+        evaluator: EVALUATOR,
+        evaluation: record.evaluation,
+      },
+    });
+  });
+
+  test("restamps a reused record with the current head and merge base so the next push can load it from this head", () => {
+    const record = previous();
+    const plan = planEvaluation(current({ head: "6".repeat(40), mergeBase: "7".repeat(40) }), record);
+
+    expect(plan.kind).toBe("reuse");
+    if (plan.kind !== "reuse") return;
+    expect(plan.record.head).toBe("6".repeat(40));
+    expect(plan.record.mergeBase).toBe("7".repeat(40));
+    expect(plan.record.patchId).toBe(record.patchId);
+    expect(plan.record.evaluator).toBe(record.evaluator);
+    expect(plan.record.evaluation).toBe(record.evaluation);
+    expect(record.head).toBe("3".repeat(40));
+    expect(record.mergeBase).toBe("4".repeat(40));
   });
 
   test("scores from scratch on the first run, with no previous evaluation", () => {

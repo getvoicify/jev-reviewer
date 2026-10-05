@@ -47,3 +47,7 @@ export function decodeRecord(text: string | null): EvaluationRecord | null {
   const result = recordSchema.safeParse(parsed);
   return result.success ? result.data : null;
 }
+
+export function composeOutputText(recordLine: string, report: string): string {
+  return `${recordLine}\n${report}`;
+}
