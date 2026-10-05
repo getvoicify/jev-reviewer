@@ -371,7 +371,7 @@ describe("evaluateMetrics", () => {
     delete (previousEvaluation.metrics as Partial<Evaluation["metrics"]>).security;
     await expect(evaluateMetrics(port, { diff: "+a" }, { previousEvaluation })).rejects.toThrow(
       new MetricEvaluationError(
-        "previousEvaluation is not a jev_review evaluation: metrics.security is missing.",
+        "previousEvaluation is not a jev_review evaluation: metrics.security: Invalid input: expected object, received undefined",
       ),
     );
     expect(requests).toHaveLength(0);

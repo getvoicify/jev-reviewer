@@ -1,6 +1,23 @@
 import type { SystemOneResult } from "@typesafe-ai/sdk";
 import { type MetricDefinition, type MetricKey, metricDefinitions } from "./definitions";
 import { type MetricQuestions, questionId } from "./questions";
+import {
+  type ComparisonEntry,
+  type Evaluation,
+  evaluationSchema,
+  type JevResponse,
+  jevResponseSchema,
+  type MetricEvaluation,
+  type Severity,
+} from "./schema";
+
+export type {
+  ComparisonEntry,
+  Evaluation,
+  MetricEvaluation,
+  MetricIssue,
+  Severity,
+} from "./schema";
 
 const MEANINGFUL_DELTA = 0.75;
 const ISSUE_THRESHOLD = 8;
@@ -9,41 +26,11 @@ const MAX_PRIORITIES = 5;
 
 export type MetricAnswers = SystemOneResult<MetricQuestions>;
 
-export type Severity = "low" | "medium" | "high";
-
-export type MetricIssue = {
-  severity: Severity;
-  description: string;
-  location?: string;
-  suggestion?: string;
-};
-
-export type MetricEvaluation = {
-  applicable: boolean;
-  score?: number;
-  confidence?: number;
-  summary?: string;
-  issues?: MetricIssue[];
-};
-
-export type ComparisonEntry = {
-  metric: MetricKey;
-  previousScore: number;
-  currentScore: number;
-  delta: number;
-  direction: "improved" | "regressed" | "unchanged";
-};
-
 export type EvaluationComparison = {
   comparison: ComparisonEntry[];
   improvements: string[];
   regressions: string[];
 };
-
-export type Evaluation = {
-  metrics: Record<MetricKey, MetricEvaluation>;
-  priorities: { metric: MetricKey; severity: Severity; reason: string }[];
-} & Partial<EvaluationComparison>;
 
 export class MetricEvaluationError extends Error {
   constructor(message: string) {
@@ -52,7 +39,15 @@ export class MetricEvaluationError extends Error {
   }
 }
 
-export function toEvaluation(result: MetricAnswers): Evaluation {
+export function toEvaluation(answers: MetricAnswers): Evaluation {
+  const parsed = jevResponseSchema.safeParse(answers);
+  if (!parsed.success) {
+    throw new MetricEvaluationError(
+      "Jev returned a response that did not match its documented schema.",
+    );
+  }
+  const result = parsed.data;
+
   const metrics = {} as Record<MetricKey, MetricEvaluation>;
   for (const definition of metricDefinitions) {
     metrics[definition.key] = transformMetric(result, definition);
@@ -78,7 +73,7 @@ export function toEvaluation(result: MetricAnswers): Evaluation {
         `${definition.label} remains weak.`,
     }));
 
-  return { metrics, priorities };
+  return evaluationSchema.parse({ metrics, priorities });
 }
 
 export function compareEvaluations(
@@ -125,7 +120,7 @@ export function compareEvaluations(
   return { comparison, improvements, regressions };
 }
 
-function transformMetric(result: MetricAnswers, definition: MetricDefinition): MetricEvaluation {
+function transformMetric(result: JevResponse, definition: MetricDefinition): MetricEvaluation {
   const applicability = result.answers[questionId(definition.key, "applicable")];
   const scoreAnswer = result.answers[questionId(definition.key, "score")];
   const weakness = result.answers[questionId(definition.key, "weakness")];
