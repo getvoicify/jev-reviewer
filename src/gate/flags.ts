@@ -7,7 +7,6 @@ const DOCUMENTATION_GLOBS: readonly string[] = [
   "**/*.mdx",
   "**/*.markdown",
   "**/*.rst",
-  "**/*.txt",
   "**/*.adoc",
   "docs/**",
   "**/LICENSE",
