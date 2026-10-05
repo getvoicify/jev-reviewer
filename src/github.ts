@@ -1,5 +1,6 @@
 import type { Octokit } from "octokit";
 import { type Annotation, batchAnnotations, COMMENT_MARKER } from "./report";
+import type { CheckRunReader, ListedCheckRun } from "./store/load";
 
 export interface PrDetails {
   number: number;
@@ -46,7 +47,7 @@ export function selectUpsertTarget(
   return null;
 }
 
-export class GitHubClient implements GitHubPort {
+export class GitHubClient implements GitHubPort, CheckRunReader {
   readonly #octokit: Octokit;
 
   constructor(octokit: Octokit) {
@@ -114,6 +115,27 @@ export class GitHubClient implements GitHubPort {
     const existing = comments.find((comment) => comment.id === existingId);
     if (existing?.body === body) return; // identical re-run; save an API call
     await this.#octokit.rest.issues.updateComment({ owner, repo, comment_id: existingId, body });
+  }
+
+  async listCheckRuns(
+    owner: string,
+    repo: string,
+    sha: string,
+    name: string,
+  ): Promise<ListedCheckRun[]> {
+    const runs = await this.#octokit.paginate(this.#octokit.rest.checks.listForRef, {
+      owner,
+      repo,
+      ref: sha,
+      check_name: name,
+      filter: "all",
+    });
+    return runs.map((run) => ({
+      appSlug: run.app?.slug ?? null,
+      status: run.status,
+      completedAt: run.completed_at,
+      outputText: run.output.text,
+    }));
   }
 
   async createCheckRun(owner: string, repo: string, params: CheckRunParams): Promise<void> {

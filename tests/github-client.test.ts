@@ -122,3 +122,66 @@ describe("GitHubClient.upsertComment", () => {
     expect(issues.updated).toHaveLength(0);
   });
 });
+
+interface ListedRun {
+  app: { slug: string } | null;
+  status: string;
+  completed_at: string | null;
+  output: { text: string | null };
+}
+
+function fakeChecksOctokit(runs: ListedRun[]): {
+  octokit: Octokit;
+  paginated: Array<{ endpoint: unknown; params: unknown }>;
+  listForRef: (params: unknown) => Promise<{ data: { check_runs: ListedRun[] } }>;
+} {
+  const paginated: Array<{ endpoint: unknown; params: unknown }> = [];
+  const listForRef = async () => ({ data: { total_count: runs.length, check_runs: runs } });
+  const octokit = {
+    rest: { checks: { listForRef } },
+    paginate: async (endpoint: unknown, params: unknown) => {
+      paginated.push({ endpoint, params });
+      return runs;
+    },
+  } as unknown as Octokit;
+  return { octokit, paginated, listForRef };
+}
+
+describe("GitHubClient.listCheckRuns", () => {
+  test("pages through every run of the named check on the commit, not only the latest", async () => {
+    const { octokit, paginated, listForRef } = fakeChecksOctokit([]);
+
+    await new GitHubClient(octokit).listCheckRuns("o", "r", "abc123", "jev-gate");
+
+    expect(paginated).toEqual([
+      {
+        endpoint: listForRef,
+        params: { owner: "o", repo: "r", ref: "abc123", check_name: "jev-gate", filter: "all" },
+      },
+    ]);
+  });
+
+  test("maps each run to its app slug, status, completion time and output text", async () => {
+    const { octokit } = fakeChecksOctokit([
+      {
+        app: { slug: "github-actions" },
+        status: "completed",
+        completed_at: "2026-10-05T10:00:00Z",
+        output: { text: "record" },
+      },
+      { app: null, status: "in_progress", completed_at: null, output: { text: null } },
+    ]);
+
+    const runs = await new GitHubClient(octokit).listCheckRuns("o", "r", "abc123", "jev-gate");
+
+    expect(runs).toEqual([
+      {
+        appSlug: "github-actions",
+        status: "completed",
+        completedAt: "2026-10-05T10:00:00Z",
+        outputText: "record",
+      },
+      { appSlug: null, status: "in_progress", completedAt: null, outputText: null },
+    ]);
+  });
+});
