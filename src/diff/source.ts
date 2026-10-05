@@ -5,11 +5,14 @@ import type { CumulativeDiff, DiffFile, Interdiff } from "./types";
 const COMMIT_ID = /^[0-9a-f]{7,64}$/;
 const FILE_HEADER = /^diff --git /gm;
 
-export function cumulativeDiff(git: GitPort, baseRef: string, headRef = "HEAD"): CumulativeDiff {
+export function cumulativeDiff(
+  git: GitPort,
+  { baseRef, headRef = "HEAD" }: { baseRef: string; headRef?: string; exclude?: string[] },
+): CumulativeDiff {
   const head = git.resolve(headRef);
   const mergeBase = git.mergeBase(git.resolve(`origin/${baseRef}`), head);
   const raw = git.diff(`${mergeBase}...${head}`);
-  return { mergeBase, head, files: splitPerFile(raw), patchId: git.patchId(raw) };
+  return { mergeBase, head, files: splitPerFile(raw), excluded: [], patchId: git.patchId(raw) };
 }
 
 export function interdiff(
@@ -40,6 +43,7 @@ function splitPerFile(raw: string): DiffFile[] {
     const lines = parsed?.hunks.flatMap((h) => h.lines) ?? [];
     return {
       path: parsed?.filename ?? "",
+      oldPath: null,
       added: lines.filter((l) => l.startsWith("+")).length,
       deleted: lines.filter((l) => l.startsWith("-")).length,
       patch,

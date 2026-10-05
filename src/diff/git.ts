@@ -12,6 +12,10 @@ export interface GitPort {
 
 const MAX_OUTPUT_BYTES = 1024 * 1024 * 1024;
 
+export function gitSupportsAttrSource(_version: string): boolean {
+  return true;
+}
+
 export function createGitPort(cwd: string): GitPort {
   const run = (args: string[], input?: string) => {
     const result = spawnSync("git", ["-c", "core.quotePath=false", ...args], {

@@ -1,4 +1,4 @@
-import type { DiffFile, Partition } from "./types";
+import type { DiffFile, Partition, PartitionBudget } from "./types";
 
 const CHARS_PER_TOKEN = 3.5;
 
@@ -20,7 +20,8 @@ function tokensOf(files: DiffFile[]): number {
   return estimateTokens(files.map((f) => f.patch).join(""));
 }
 
-export function partition(files: DiffFile[], budgetTokens: number): Partition[] {
+export function partition(files: DiffFile[], { limitTokens }: PartitionBudget): Partition[] {
+  const budgetTokens = limitTokens;
   const sorted = [...files].sort(byPath);
   if (sorted.length === 0) return [];
 

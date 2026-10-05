@@ -1,5 +1,6 @@
 export interface DiffFile {
   path: string;
+  oldPath: string | null;
   added: number;
   deleted: number;
   patch: string;
@@ -9,7 +10,13 @@ export interface CumulativeDiff {
   mergeBase: string;
   head: string;
   files: DiffFile[];
+  excluded: ExcludedFile[];
   patchId: string | null;
+}
+
+export interface PartitionBudget {
+  limitTokens: number;
+  reservedTokens: number;
 }
 
 export interface Partition {

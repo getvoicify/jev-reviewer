@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { DEFAULT_EXCLUDE_GLOBS, excludePaths } from "../src/diff/exclude";
 import type { GitPort } from "../src/diff/git";
+import { gitSupportsAttrSource } from "../src/diff/git";
 import { estimateTokens, moduleOf, partition } from "../src/diff/partition";
 import { interdiff } from "../src/diff/source";
 import type { DiffFile } from "../src/diff/types";
@@ -9,8 +10,13 @@ function file(path: string, length: number): DiffFile {
   const header = `diff --git a/${path} b/${path}\n`;
   const body = `+${"x".repeat(length - header.length - 2)}\n`;
   const patch = header + body;
-  if (patch.length !== length) throw new Error(`fixture ${path} cannot be ${length} chars`);
-  return { path, added: 1, deleted: 0, patch };
+  if (Buffer.byteLength(patch) !== length)
+    throw new Error(`fixture ${path} is not ${length} bytes`);
+  return { path, oldPath: null, added: 1, deleted: 0, patch };
+}
+
+function diffOnly(limitTokens: number) {
+  return { limitTokens, reservedTokens: 0 };
 }
 
 function shape(parts: ReturnType<typeof partition>) {
@@ -18,12 +24,19 @@ function shape(parts: ReturnType<typeof partition>) {
 }
 
 describe("estimateTokens", () => {
-  test("charges one token per 3.5 characters, rounding up", () => {
+  test("charges one token per three bytes, rounding up", () => {
     expect(estimateTokens("")).toBe(0);
-    expect(estimateTokens("x".repeat(7))).toBe(2);
-    expect(estimateTokens("x".repeat(8))).toBe(3);
-    expect(estimateTokens("x".repeat(70))).toBe(20);
-    expect(estimateTokens("x".repeat(71))).toBe(21);
+    expect(estimateTokens("x".repeat(3))).toBe(1);
+    expect(estimateTokens("x".repeat(4))).toBe(2);
+    expect(estimateTokens("x".repeat(60))).toBe(20);
+    expect(estimateTokens("x".repeat(61))).toBe(21);
+  });
+
+  test("counts UTF-8 bytes, so non-ASCII text is not under-estimated", () => {
+    expect(Buffer.byteLength("ééé")).toBe(6);
+    expect(estimateTokens("ééé")).toBe(2);
+    expect(Buffer.byteLength("日本語")).toBe(9);
+    expect(estimateTokens("日本語")).toBe(3);
   });
 });
 
@@ -38,17 +51,17 @@ describe("moduleOf", () => {
 
 describe("partition", () => {
   test("returns a single partition when the whole diff fits", () => {
-    const parts = partition([file("src/b.ts", 70), file("lib/a.ts", 70)], 40);
+    const parts = partition([file("src/b.ts", 60), file("lib/a.ts", 60)], diffOnly(40));
 
     expect(shape(parts)).toEqual([{ files: ["lib/a.ts", "src/b.ts"], oversized: false }]);
     expect(parts[0]?.tokens).toBe(40);
   });
 
   test("splits once the diff is a single token over budget", () => {
-    const files = [file("lib/a.ts", 70), file("src/b.ts", 70)];
-    expect(files.map((f) => f.patch.length)).toEqual([70, 70]);
+    const files = [file("lib/a.ts", 60), file("src/b.ts", 60)];
+    expect(files.map((f) => Buffer.byteLength(f.patch))).toEqual([60, 60]);
 
-    expect(shape(partition(files, 39))).toEqual([
+    expect(shape(partition(files, diffOnly(39)))).toEqual([
       { files: ["lib/a.ts"], oversized: false },
       { files: ["src/b.ts"], oversized: false },
     ]);
@@ -57,13 +70,13 @@ describe("partition", () => {
   test("keeps a module's files together rather than filling a partition across modules", () => {
     const parts = partition(
       [
-        file("pkg/a/one.ts", 70),
-        file("pkg/b/one.ts", 70),
-        file("pkg/b/two.ts", 70),
-        file("pkg/a/two.ts", 70),
-        file("pkg/c/one.ts", 70),
+        file("pkg/a/one.ts", 60),
+        file("pkg/b/one.ts", 60),
+        file("pkg/b/two.ts", 60),
+        file("pkg/a/two.ts", 60),
+        file("pkg/c/one.ts", 60),
       ],
-      60,
+      diffOnly(60),
     );
 
     expect(shape(parts)).toEqual([
@@ -74,7 +87,10 @@ describe("partition", () => {
   });
 
   test("packs several small modules into one partition when they fit", () => {
-    const parts = partition([file("a/x/1.ts", 70), file("b/x/1.ts", 70), file("c/x/1.ts", 70)], 45);
+    const parts = partition(
+      [file("a/x/1.ts", 60), file("b/x/1.ts", 60), file("c/x/1.ts", 60)],
+      diffOnly(45),
+    );
 
     expect(shape(parts)).toEqual([
       { files: ["a/x/1.ts", "b/x/1.ts"], oversized: false },
@@ -84,9 +100,9 @@ describe("partition", () => {
   });
 
   test("spreads a module larger than the budget over partitions without splitting a file", () => {
-    const files = [file("big/m/1.ts", 70), file("big/m/2.ts", 70), file("big/m/3.ts", 70)];
+    const files = [file("big/m/1.ts", 60), file("big/m/2.ts", 60), file("big/m/3.ts", 60)];
 
-    const parts = partition(files, 40);
+    const parts = partition(files, diffOnly(40));
 
     expect(shape(parts)).toEqual([
       { files: ["big/m/1.ts", "big/m/2.ts"], oversized: false },
@@ -96,8 +112,8 @@ describe("partition", () => {
   });
 
   test("gives a file over budget its own oversized partition, untruncated", () => {
-    const huge = file("src/huge.ts", 71);
-    const parts = partition([file("src/a.ts", 70), huge, file("src/z.ts", 70)], 20);
+    const huge = file("src/huge.ts", 61);
+    const parts = partition([file("src/a.ts", 60), huge, file("src/z.ts", 60)], diffOnly(20));
 
     expect(shape(parts)).toEqual([
       { files: ["src/a.ts"], oversized: false },
@@ -109,7 +125,7 @@ describe("partition", () => {
   });
 
   test("does not mark a file that lands exactly on the budget as oversized", () => {
-    const parts = partition([file("src/a.ts", 70), file("src/b.ts", 70)], 20);
+    const parts = partition([file("src/a.ts", 60), file("src/b.ts", 60)], diffOnly(20));
 
     expect(shape(parts)).toEqual([
       { files: ["src/a.ts"], oversized: false },
@@ -119,24 +135,42 @@ describe("partition", () => {
 
   test("produces the same partitions whatever order the files arrive in", () => {
     const files = [
-      file("pkg/b/one.ts", 70),
-      file("pkg/a/two.ts", 70),
-      file("README.md", 70),
-      file("pkg/a/one.ts", 70),
-      file("pkg/b/two.ts", 70),
+      file("pkg/b/one.ts", 60),
+      file("pkg/a/two.ts", 60),
+      file("README.md", 60),
+      file("pkg/a/one.ts", 60),
+      file("pkg/b/two.ts", 60),
     ];
     const reversed = [...files].reverse();
 
-    expect(shape(partition(reversed, 45))).toEqual(shape(partition(files, 45)));
-    expect(shape(partition(files, 45)).map((p) => p.files)).toEqual([
+    expect(shape(partition(reversed, diffOnly(45)))).toEqual(shape(partition(files, diffOnly(45))));
+    expect(shape(partition(files, diffOnly(45))).map((p) => p.files)).toEqual([
       ["README.md"],
       ["pkg/a/one.ts", "pkg/a/two.ts"],
       ["pkg/b/one.ts", "pkg/b/two.ts"],
     ]);
   });
 
+  test("budgets only what the limit leaves after the reserved prompt tokens", () => {
+    const files = [file("lib/a.ts", 60), file("src/b.ts", 60)];
+
+    expect(shape(partition(files, { limitTokens: 32_000, reservedTokens: 31_960 }))).toEqual([
+      { files: ["lib/a.ts", "src/b.ts"], oversized: false },
+    ]);
+    expect(shape(partition(files, { limitTokens: 32_000, reservedTokens: 31_961 }))).toEqual([
+      { files: ["lib/a.ts"], oversized: false },
+      { files: ["src/b.ts"], oversized: false },
+    ]);
+  });
+
+  test("refuses a reservation that leaves no room for the diff", () => {
+    expect(() =>
+      partition([file("lib/a.ts", 60)], { limitTokens: 32_000, reservedTokens: 32_000 }),
+    ).toThrow(/reservedTokens 32000 leaves no room within limitTokens 32000/);
+  });
+
   test("returns no partitions for an empty diff", () => {
-    expect(partition([], 100)).toEqual([]);
+    expect(partition([], diffOnly(100))).toEqual([]);
   });
 });
 
@@ -205,5 +239,16 @@ describe("interdiff input guard", () => {
     const result = interdiff(untouchable, { baseRef: "main", previousHead: "--output=/tmp/x" });
 
     expect(result).toEqual({ kind: "unreachable", previousHead: "--output=/tmp/x" });
+  });
+});
+
+describe("gitSupportsAttrSource", () => {
+  test("requires git 2.40 or newer", () => {
+    expect(gitSupportsAttrSource("git version 2.50.1 (Apple Git-155)")).toBe(true);
+    expect(gitSupportsAttrSource("git version 2.40.0")).toBe(true);
+    expect(gitSupportsAttrSource("git version 3.0.0")).toBe(true);
+    expect(gitSupportsAttrSource("git version 2.39.5")).toBe(false);
+    expect(gitSupportsAttrSource("git version 1.99.0")).toBe(false);
+    expect(gitSupportsAttrSource("not git")).toBe(false);
   });
 });
