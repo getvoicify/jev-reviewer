@@ -61,8 +61,9 @@ interface CallLog {
 function stubPorts(
   diff: string,
   jevResults: unknown[],
-): { github: GitHubPort; jev: JevPort; log: CallLog } {
+): { github: GitHubPort; jev: JevPort; log: CallLog; requests: Array<{ model?: string }> } {
   const log: CallLog = { comments: [], checkRuns: [], outputs: {}, failures: [], infos: [] };
+  const requests: Array<{ model?: string }> = [];
   let next = 0;
   const github: GitHubPort = {
     async getPullDiff() {
@@ -82,14 +83,15 @@ function stubPorts(
     },
   };
   const jev: JevPort = {
-    async systemOne() {
+    async systemOne(request) {
+      requests.push(request);
       const result = jevResults[next];
       if (!result) throw new Error(`stub exhausted at call ${next}`);
       next++;
       return result as never;
     },
   };
-  return { github, jev, log };
+  return { github, jev, log, requests };
 }
 
 function config(overrides: Partial<Config> = {}): Config {
@@ -163,6 +165,24 @@ describe("runApp", () => {
     expect(log.checkRuns[0]?.conclusion).toBe("failure");
     expect(log.failures).toHaveLength(1);
     expect(log.failures[0]).toContain("high");
+  });
+
+  test("sends the configured model on every chunk and PR-level request", async () => {
+    const { github, jev, requests } = stubPorts(DIFF, [BUGGY_CHUNK, CLEAN_PR]);
+    const io = { setOutput: () => {}, fail: () => {}, info: () => {} };
+
+    await runApp({
+      config: config({ model: "jev-pinned-test" }),
+      githubPort: github,
+      jev,
+      context: CONTEXT,
+      io,
+    });
+
+    expect(requests.map((request) => request.model)).toEqual([
+      "jev-pinned-test",
+      "jev-pinned-test",
+    ]);
   });
 
   test("comment=false skips the PR comment", async () => {

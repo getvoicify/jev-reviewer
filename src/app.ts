@@ -73,6 +73,7 @@ export async function runApp(deps: AppDeps): Promise<void> {
     { title: pr.title, body: pr.body, filenames: collected.chunks.map((chunk) => chunk.file) },
     policy,
     questionOverrides,
+    config.model,
   );
 
   const fail = shouldFail(review, config.failOn);
