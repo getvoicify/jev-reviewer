@@ -9,39 +9,27 @@ import { evaluationSchema } from "../metrics/schema";
 
 export type PartitionEvaluation = { evaluation: Evaluation; changedLines: number };
 
-type ScoredPart = {
+export type ScoredPart = {
   metric: MetricEvaluation & { score: number; confidence: number };
   weight: number;
 };
 
-export function aggregateEvaluations(
-  parts: PartitionEvaluation[],
-  gatedKeys: readonly MetricKey[],
-  _minConfidence: number,
-): Evaluation {
+export function validatePartitions(parts: PartitionEvaluation[]): PartitionEvaluation[] {
   if (parts.length === 0) {
     throw new Error("Cannot aggregate evaluations: at least one partition is required.");
   }
-
-  const metrics = Object.fromEntries(
-    metricKeys.map((key) => [key, aggregateMetric(parts, key, gatedKeys.includes(key))]),
-  ) as Evaluation["metrics"];
-
-  const priorities = uniqueBy(
-    parts.flatMap((part) => part.evaluation.priorities),
-    (priority) => JSON.stringify([priority.metric, priority.severity, priority.reason]),
-  );
-
-  return evaluationSchema.parse({ metrics, priorities });
+  return parts.map(({ evaluation, changedLines }, index) => {
+    if (!Number.isSafeInteger(changedLines) || changedLines < 0) {
+      throw new Error(
+        `Partition ${index} has changedLines ${changedLines}; it must be a non-negative integer.`,
+      );
+    }
+    return { evaluation: evaluationSchema.parse(evaluation), changedLines };
+  });
 }
 
-function aggregateMetric(
-  parts: PartitionEvaluation[],
-  key: MetricKey,
-  gated: boolean,
-): MetricEvaluation {
-  const all = parts.map((part) => part.evaluation.metrics[key]);
-  const scored: ScoredPart[] = parts.flatMap(({ evaluation, changedLines }) => {
+export function scoredParts(parts: PartitionEvaluation[], key: MetricKey): ScoredPart[] {
+  return parts.flatMap(({ evaluation, changedLines }) => {
     const metric = evaluation.metrics[key];
     return metric.applicable && metric.score !== undefined && metric.confidence !== undefined
       ? [
@@ -52,6 +40,51 @@ function aggregateMetric(
         ]
       : [];
   });
+}
+
+export function lowestScore(parts: ScoredPart[]): ScoredPart | undefined {
+  return parts.reduce<ScoredPart | undefined>(
+    (lowest, candidate) =>
+      lowest === undefined ||
+      candidate.metric.score < lowest.metric.score ||
+      (candidate.metric.score === lowest.metric.score &&
+        candidate.metric.confidence < lowest.metric.confidence)
+        ? candidate
+        : lowest,
+    undefined,
+  );
+}
+
+export function aggregateEvaluations(
+  parts: PartitionEvaluation[],
+  gatedKeys: readonly MetricKey[],
+  minConfidence: number,
+): Evaluation {
+  const valid = validatePartitions(parts);
+
+  const metrics = Object.fromEntries(
+    metricKeys.map((key) => [
+      key,
+      aggregateMetric(valid, key, gatedKeys.includes(key), minConfidence),
+    ]),
+  ) as Evaluation["metrics"];
+
+  const priorities = uniqueBy(
+    valid.flatMap((part) => part.evaluation.priorities),
+    (priority) => JSON.stringify([priority.metric, priority.severity, priority.reason]),
+  );
+
+  return { metrics, priorities };
+}
+
+function aggregateMetric(
+  parts: PartitionEvaluation[],
+  key: MetricKey,
+  gated: boolean,
+  minConfidence: number,
+): MetricEvaluation {
+  const all = parts.map((part) => part.evaluation.metrics[key]);
+  const scored = scoredParts(parts, key);
   const issues = uniqueBy(
     all.flatMap((metric) => metric.issues ?? []),
     (issue: MetricIssue) => JSON.stringify([issue.severity, issue.description]),
@@ -63,16 +96,16 @@ function aggregateMetric(
   }
 
   if (gated) {
-    const worst = scored.reduce((lowest, candidate) =>
-      candidate.metric.score < lowest.metric.score ||
-      (candidate.metric.score === lowest.metric.score &&
-        candidate.metric.confidence < lowest.metric.confidence)
-        ? candidate
-        : lowest,
-    );
+    const representative =
+      lowestScore(scored.filter((part) => part.metric.confidence >= minConfidence)) ??
+      leastConfident(scored);
     return withOptional(
-      { applicable: true, score: worst.metric.score, confidence: worst.metric.confidence },
-      worst.metric.summary,
+      {
+        applicable: true,
+        score: representative.metric.score,
+        confidence: representative.metric.confidence,
+      },
+      representative.metric.summary,
       issues,
     );
   }
@@ -85,14 +118,27 @@ function aggregateMetric(
     const value = scored.reduce((sum, part) => sum + share(part) * pick(part), 0);
     return Math.min(Math.max(value, Math.min(...values)), Math.max(...values));
   };
+  const heaviest = scored.reduce((best, candidate) =>
+    candidate.weight > best.weight ? candidate : best,
+  );
   return withOptional(
     {
       applicable: true,
       score: mean((part) => part.metric.score),
       confidence: mean((part) => part.metric.confidence),
     },
-    scored[0]?.metric.summary,
+    heaviest.metric.summary,
     issues,
+  );
+}
+
+function leastConfident(parts: ScoredPart[]): ScoredPart {
+  return parts.reduce((least, candidate) =>
+    candidate.metric.confidence < least.metric.confidence ||
+    (candidate.metric.confidence === least.metric.confidence &&
+      candidate.metric.score < least.metric.score)
+      ? candidate
+      : least,
   );
 }
 

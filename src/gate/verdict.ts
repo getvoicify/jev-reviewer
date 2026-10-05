@@ -1,5 +1,12 @@
 import { type Evaluation, type MetricKey, metricKeys } from "../metrics";
-import { aggregateEvaluations, type PartitionEvaluation } from "./aggregate";
+import {
+  aggregateEvaluations,
+  lowestScore,
+  type PartitionEvaluation,
+  type ScoredPart,
+  scoredParts,
+  validatePartitions,
+} from "./aggregate";
 import type { GateConfig } from "./config";
 
 export type MetricStatus = "pass" | "fail" | "inconclusive" | "warn" | "not_applicable";
@@ -19,84 +26,106 @@ export type Verdict = {
   reasons: string[];
 };
 
+export type VerdictFlags = { oversized: boolean; codeChanged: boolean };
+
 export const OVERSIZED_REASON =
   "A file was too large to score whole, so part of the change was not reviewed";
 
+export const NO_GATED_METRIC_REASON = "No gated metric was applicable to a code change";
+
 type Assessed = MetricVerdict & { reason: string | null };
+
+const GATED_SEVERITY: MetricStatus[] = ["fail", "inconclusive", "pass"];
 
 export function decideVerdict(
   parts: PartitionEvaluation[],
   config: GateConfig,
-  flags: { oversized: boolean; codeChanged: boolean },
+  flags: VerdictFlags,
 ): Verdict {
-  const evaluation = aggregateEvaluations(
-    parts,
+  const valid = validatePartitions(parts);
+  const aggregate = aggregateEvaluations(
+    valid,
     Object.keys(config.gated) as MetricKey[],
     config.minConfidence,
   );
-  const assessed = metricKeys.map((key) => assess(key, evaluation, config));
+  const assessed = metricKeys.map((key) => {
+    const minimum = config.gated[key];
+    return minimum === undefined
+      ? assessAdvisory(key, aggregate, config)
+      : assessGated(key, scoredParts(valid, key), minimum, config);
+  });
   const reasonsFor = (status: MetricStatus) =>
     assessed.flatMap((entry) =>
       entry.status === status && entry.reason !== null ? [entry.reason] : [],
     );
   const failed = assessed.some((entry) => entry.status === "fail");
   const inconclusive = assessed.some((entry) => entry.status === "inconclusive");
+  const nothingGated =
+    flags.codeChanged &&
+    assessed.every((entry) => !entry.gated || entry.status === "not_applicable");
 
   return {
-    conclusion: failed ? "failure" : inconclusive || flags.oversized ? "neutral" : "success",
+    conclusion: failed
+      ? "failure"
+      : inconclusive || flags.oversized || nothingGated
+        ? "neutral"
+        : "success",
     metrics: assessed.map(({ reason: _reason, ...entry }) => entry),
     reasons: [
       ...reasonsFor("fail"),
       ...reasonsFor("inconclusive"),
       ...(flags.oversized ? [OVERSIZED_REASON] : []),
+      ...(nothingGated ? [NO_GATED_METRIC_REASON] : []),
       ...reasonsFor("warn"),
     ],
   };
 }
 
-function assess(key: MetricKey, evaluation: Evaluation, config: GateConfig): Assessed {
-  const metric = evaluation.metrics[key];
-  const minimum = config.gated[key] ?? null;
-  const base = {
-    metric: key,
-    score: metric.applicable ? (metric.score ?? null) : null,
-    confidence: metric.applicable ? (metric.confidence ?? null) : null,
-    gated: minimum !== null,
-    minimum,
-  };
-  const { score, confidence } = base;
+function assessGated(
+  key: MetricKey,
+  scored: ScoredPart[],
+  minimum: number,
+  config: GateConfig,
+): Assessed {
+  const base = { metric: key, gated: true, minimum };
+  const statusOf = (part: ScoredPart): MetricStatus =>
+    !(part.metric.confidence >= config.minConfidence)
+      ? "inconclusive"
+      : !(part.metric.score >= minimum)
+        ? "fail"
+        : "pass";
 
-  if (!metric.applicable) return { ...base, status: "not_applicable", reason: null };
-
-  if (minimum !== null) {
-    if (score === null || confidence === null) {
-      return { ...base, status: "inconclusive", reason: `${key} is applicable but was not scored` };
-    }
-    if (confidence < config.minConfidence) {
-      return {
-        ...base,
-        status: "inconclusive",
-        reason: `${key} confidence ${display(confidence, config.minConfidence)} is below the minimum of ${config.minConfidence}`,
-      };
-    }
-    if (score < minimum) {
-      return {
-        ...base,
-        status: "fail",
-        reason: `${key} scored ${display(score, minimum)}, below the minimum of ${minimum}`,
-      };
-    }
-    return { ...base, status: "pass", reason: null };
+  for (const status of GATED_SEVERITY) {
+    const worst = lowestScore(scored.filter((part) => statusOf(part) === status));
+    if (worst === undefined) continue;
+    const { score, confidence } = worst.metric;
+    const reason =
+      status === "fail"
+        ? `${key} scored ${display(score, minimum)}, below the minimum of ${minimum}`
+        : status === "inconclusive"
+          ? `${key} confidence ${display(confidence, config.minConfidence)} is below the minimum of ${config.minConfidence}`
+          : null;
+    return { ...base, score, confidence, status, reason };
   }
+  return { ...base, score: null, confidence: null, status: "not_applicable", reason: null };
+}
 
-  if (score !== null && score < config.advisoryFloor) {
-    return {
-      ...base,
-      status: "warn",
-      reason: `${key} scored ${display(score, config.advisoryFloor)}, below the advisory floor of ${config.advisoryFloor}`,
-    };
+function assessAdvisory(key: MetricKey, aggregate: Evaluation, config: GateConfig): Assessed {
+  const metric = aggregate.metrics[key];
+  const base = { metric: key, gated: false, minimum: null };
+  if (!metric.applicable || metric.score === undefined || metric.confidence === undefined) {
+    return { ...base, score: null, confidence: null, status: "not_applicable", reason: null };
   }
-  return { ...base, status: "pass", reason: null };
+  const { score, confidence } = metric;
+  return !(score >= config.advisoryFloor)
+    ? {
+        ...base,
+        score,
+        confidence,
+        status: "warn",
+        reason: `${key} scored ${display(score, config.advisoryFloor)}, below the advisory floor of ${config.advisoryFloor}`,
+      }
+    : { ...base, score, confidence, status: "pass", reason: null };
 }
 
 function display(value: number, threshold: number): string {
