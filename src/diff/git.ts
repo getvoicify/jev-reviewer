@@ -7,7 +7,8 @@ export interface ChangedFile {
 }
 
 export interface GitPort {
-  resolve(ref: string): string | null;
+  resolve(ref: string): string;
+  tryResolve(ref: string): string | null;
   mergeBase(a: string, b: string): string | null;
   diff(range: string, attrSource: string): string;
   changedFiles(range: string, attrSource: string): ChangedFile[];
@@ -21,6 +22,7 @@ export interface GitPort {
 const MAX_OUTPUT_BYTES = 1024 * 1024 * 1024;
 const DIFF_OPTIONS = [
   "--no-color",
+  "--text",
   "--no-ext-diff",
   "--no-textconv",
   "--find-renames",
@@ -43,22 +45,25 @@ function isolatedEnv(): NodeJS.ProcessEnv {
     GIT_CONFIG_GLOBAL: "/dev/null",
   };
   for (const key of Object.keys(env)) {
-    if (key === "GIT_CONFIG_PARAMETERS" || key.startsWith("GIT_CONFIG_COUNT")) delete env[key];
-    if (/^GIT_CONFIG_(KEY|VALUE)_\d+$/.test(key)) delete env[key];
+    if (key === "GIT_CONFIG_PARAMETERS" || key === "GIT_CONFIG_COUNT") delete env[key];
   }
   return env;
 }
 
 export function createGitPort(cwd: string): GitPort {
   const env = isolatedEnv();
-  const run = (args: string[], input?: string) => {
-    const result = spawnSync("git", ["-c", `safe.directory=${cwd}`, ...args], {
+  const spawn = (safeDirectory: string, args: string[], input?: string) =>
+    spawnSync("git", ["-c", `safe.directory=${safeDirectory}`, ...args], {
       cwd,
       env,
       input,
       encoding: "utf8",
       maxBuffer: MAX_OUTPUT_BYTES,
     });
+  const toplevel = spawn("*", ["rev-parse", "--show-toplevel"]);
+  const safeDirectory = toplevel.status === 0 ? toplevel.stdout.trim() : cwd;
+  const run = (args: string[], input?: string) => {
+    const result = spawn(safeDirectory, args, input);
     if (result.error) throw result.error;
     return { status: result.status, stdout: result.stdout, stderr: result.stderr };
   };
@@ -82,7 +87,8 @@ export function createGitPort(cwd: string): GitPort {
   };
 
   return {
-    resolve: (ref) => {
+    resolve: (ref) => ok(["rev-parse", "--verify", "--end-of-options", `${ref}^{commit}`]).trim(),
+    tryResolve: (ref) => {
       const result = run([
         "rev-parse",
         "--verify",

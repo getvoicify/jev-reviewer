@@ -14,8 +14,7 @@ export function cumulativeDiff(
   const headRef = options.headRef ?? "HEAD";
   const baseName = `origin/${options.baseRef}`;
   const head = git.resolve(headRef);
-  if (!head) throw new Error(`${headRef} does not resolve to a commit`);
-  const base = git.resolve(baseName);
+  const base = git.tryResolve(baseName);
   if (!base) throw new Error(`${baseName} is not in this checkout; ${FETCH_HINT}`);
   const mergeBase = git.mergeBase(base, head);
   if (!mergeBase) {
@@ -37,17 +36,18 @@ export function interdiff(
   const { previousHead } = options;
   const unreachable: Interdiff = { kind: "unreachable", previousHead };
   if (!COMMIT_ID.test(previousHead) || !git.hasCommit(previousHead)) return unreachable;
-  const head = git.resolve(options.headRef ?? "HEAD");
-  const base = git.resolve(`origin/${options.baseRef}`);
+  const head = git.tryResolve(options.headRef ?? "HEAD");
+  const base = git.tryResolve(`origin/${options.baseRef}`);
   if (!head || !base) return unreachable;
   const headBase = git.mergeBase(base, head);
   if (!headBase) return unreachable;
-  if (git.isAncestor(previousHead, head) && !git.hasMerges(`${previousHead}..${head}`)) {
+  if (git.isAncestor(previousHead, head)) {
+    if (git.hasMerges(`${previousHead}..${head}`)) return unreachable;
     const patch = git.diff(`${previousHead}..${head}`, headBase);
     return { kind: "incremental", previousHead, head, patch };
   }
   const previousBase = git.mergeBase(base, previousHead);
-  if (!previousBase) return unreachable;
+  if (!previousBase || git.hasMerges(`${headBase}..${head}`)) return unreachable;
   const rangeDiff = git.rangeDiff(`${previousBase}..${previousHead}`, `${headBase}..${head}`);
   return { kind: "rebased", previousHead, head, rangeDiff };
 }

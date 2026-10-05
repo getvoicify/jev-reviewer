@@ -175,6 +175,24 @@ describe("cumulativeDiff against a real repository", () => {
     expect(evil?.patch).toContain("+steal();");
   });
 
+  test("ignores a diff driver the PR assigns to its own files", () => {
+    const r = makeRepo();
+    const filler = Array.from({ length: 8 }, (_, i) => `  const v${i} = ${i};\n`).join("");
+    r.write("src/a.ts", `function outer() {\n${filler}  return 1;\n}\n`);
+    r.commit("seed");
+    r.git("branch", "-f", "main", "HEAD");
+    r.publishMain();
+    r.write(".gitattributes", "*.ts diff=tex\n");
+    r.write("src/a.ts", `function outer() {\n${filler}  return 2;\n}\n`);
+    r.commit("retarget the driver");
+
+    const patch = cumulativeDiff(r.port, { baseRef: "main" }).files.find(
+      (f) => f.path === "src/a.ts",
+    )?.patch;
+
+    expect(patch).toMatch(/^@@ .* @@ function outer\(\) \{$/m);
+  });
+
   test("shows a source file containing a NUL byte as text rather than binary", () => {
     const r = makeRepo();
     r.publishMain();
@@ -245,20 +263,19 @@ describe("cumulativeDiff against a real repository", () => {
 
   test("ignores config injected through GIT_CONFIG_COUNT", () => {
     const r = makeRepo();
+    r.write("ctx.txt", "keep 1\nchange me\nkeep 2\n");
+    r.commit("seed");
+    r.git("branch", "-f", "main", "HEAD");
     r.publishMain();
-    r.write("src/a.ts", "real();\n");
+    r.write("ctx.txt", "keep 1\nchanged\nkeep 2\n");
     r.commit("change");
-    const scratch = mkdtempSync(join(tmpdir(), "jev-count-"));
-    cleanups.push(scratch);
-    const hideEverything = join(scratch, "attributes");
-    writeFileSync(hideEverything, "* -diff\n");
     process.env.GIT_CONFIG_COUNT = "1";
-    process.env.GIT_CONFIG_KEY_0 = "core.attributesFile";
-    process.env.GIT_CONFIG_VALUE_0 = hideEverything;
+    process.env.GIT_CONFIG_KEY_0 = "diff.context";
+    process.env.GIT_CONFIG_VALUE_0 = "0";
 
     const result = cumulativeDiff(createGitPort(r.repo), { baseRef: "main" });
 
-    expect(result.files[0]?.patch).toContain("+real();");
+    expect(result.files[0]?.patch).toContain(" keep 1\n-change me\n+changed\n keep 2\n");
   });
 
   test("works when git sees the checkout as owned by someone else, from the root or a subdirectory", () => {
@@ -276,6 +293,23 @@ describe("cumulativeDiff against a real repository", () => {
       "src/gone.ts",
     ]);
     expect(fromSubdirectory.patchId).toBe(fromRoot.patchId);
+  });
+
+  test("works through a symlink to a checkout git sees as owned by someone else", () => {
+    const r = makeFeature();
+    const links = mkdtempSync(join(tmpdir(), "jev-link-"));
+    cleanups.push(links);
+    const linked = join(links, "checkout");
+    symlinkSync(r.repo, linked);
+    process.env.GIT_TEST_ASSUME_DIFFERENT_OWNER = "1";
+
+    const result = cumulativeDiff(createGitPort(join(linked, "src")), { baseRef: "main" });
+
+    expect(result.files.map((f) => f.path)).toEqual([
+      "src/app.ts",
+      "src/diff/new.ts",
+      "src/gone.ts",
+    ]);
   });
 
   test("includes git's own reason when HEAD does not resolve", () => {
@@ -309,10 +343,13 @@ describe("cumulativeDiff against a real repository", () => {
     const hostileGlobal = join(scratch, "global.gitconfig");
     writeFileSync(
       hostileGlobal,
-      `[diff]\n\trenames = false\n\tsubmodule = log\n\tnoprefix = true\n[color]\n\tdiff = always\n[core]\n\tattributesFile = ${hideEverything}\n`,
+      `[diff]\n\trenames = false\n\tsubmodule = log\n\tnoprefix = true\n[color]\n\tdiff = always\n[core]\n\tattributesFile = ${hideEverything}\n[diff]\n\tcontext = 0\n`,
     );
     const hostileSystem = join(scratch, "system.gitconfig");
-    writeFileSync(hostileSystem, `[core]\n\tattributesFile = ${hideEverything}\n`);
+    writeFileSync(
+      hostileSystem,
+      `[core]\n\tattributesFile = ${hideEverything}\n[diff]\n\tcontext = 0\n`,
+    );
     process.env.GIT_CONFIG_GLOBAL = hostileGlobal;
     process.env.GIT_CONFIG_SYSTEM = hostileSystem;
     process.env.GIT_CONFIG_PARAMETERS = "'diff.context'='0'";
