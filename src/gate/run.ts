@@ -47,6 +47,7 @@ export interface GateSettings {
   gateConfigPath?: string;
   overrideLabel?: string;
   checkName?: string;
+  commentAuthor?: string;
 }
 
 export interface GateGitHubPort {
@@ -58,6 +59,7 @@ export interface GateGitHubPort {
     pullNumber: number,
     body: string,
     marker: string,
+    author: string,
   ): Promise<void>;
 }
 
@@ -109,12 +111,18 @@ function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+function orDefault(value: string | undefined, fallback: string): string {
+  return value === undefined || value === "" ? fallback : value;
+}
+
 function withDefaults(settings: GateSettings): Settings {
   return {
-    gateConfigPath: ".github/jev-gate.json",
-    overrideLabel: "jev-gate:override",
-    checkName: "jev-gate",
-    ...settings,
+    model: settings.model,
+    trustedWorkflow: settings.trustedWorkflow,
+    gateConfigPath: orDefault(settings.gateConfigPath, ".github/jev-gate.json"),
+    overrideLabel: orDefault(settings.overrideLabel, "jev-gate:override"),
+    checkName: orDefault(settings.checkName, "jev-gate"),
+    commentAuthor: orDefault(settings.commentAuthor, "github-actions[bot]"),
   };
 }
 
@@ -336,6 +344,7 @@ async function report(deps: GateDeps, settings: Settings, outcome: Outcome): Pro
     context.prNumber,
     renderComment(input),
     GATE_COMMENT_MARKER,
+    settings.commentAuthor,
   );
 }
 

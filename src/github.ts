@@ -47,10 +47,12 @@ const ANNOTATION_BATCH_SIZE = 50;
 
 /** Returns the id of the first comment carrying the marker, or null. */
 export function selectUpsertTarget(
-  comments: Array<{ id: number; body?: string | null }>,
+  comments: Array<{ id: number; body?: string | null; user?: { login: string } | null }>,
   marker: string,
+  author?: string,
 ): number | null {
   for (const comment of comments) {
+    if (author !== undefined && comment.user?.login !== author) continue;
     if (comment.body?.includes(marker)) return comment.id;
   }
   return null;
@@ -106,13 +108,14 @@ export class GitHubClient implements GitHubPort {
     pullNumber: number,
     body: string,
     marker: string = COMMENT_MARKER,
+    author?: string,
   ): Promise<void> {
     const comments = await this.#octokit.paginate(this.#octokit.rest.issues.listComments, {
       owner,
       repo,
       issue_number: pullNumber,
     });
-    const existingId = selectUpsertTarget(comments, marker);
+    const existingId = selectUpsertTarget(comments, marker, author);
     if (existingId === null) {
       await this.#octokit.rest.issues.createComment({
         owner,

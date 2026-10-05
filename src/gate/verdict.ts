@@ -25,10 +25,13 @@ export type Verdict = {
   reasons: string[];
 };
 
-export type VerdictFlags = { oversized: boolean; codeChanged: boolean };
+export type VerdictFlags = { oversized: boolean; codeChanged: boolean; unreviewedExcluded: number };
 
 export const OVERSIZED_REASON =
   "A file was too large to score whole, so part of the change was not reviewed";
+
+export const UNREVIEWED_EXCLUDED_REASON =
+  "Excluded files that can run or configure the build changed and were not reviewed";
 
 export const NO_GATED_METRIC_REASON = "No gated metric was applicable to a code change";
 
@@ -59,7 +62,7 @@ export function decideVerdict(
   return {
     conclusion: failed
       ? "failure"
-      : inconclusive || flags.oversized || nothingGated
+      : inconclusive || flags.oversized || flags.unreviewedExcluded > 0 || nothingGated
         ? "neutral"
         : "success",
     metrics: assessed.map(({ reason: _reason, ...entry }) => entry),
@@ -67,6 +70,9 @@ export function decideVerdict(
       ...reasonsFor("fail"),
       ...reasonsFor("inconclusive"),
       ...(flags.oversized ? [OVERSIZED_REASON] : []),
+      ...(flags.unreviewedExcluded > 0
+        ? [`${UNREVIEWED_EXCLUDED_REASON}: ${flags.unreviewedExcluded}`]
+        : []),
       ...(nothingGated ? [NO_GATED_METRIC_REASON] : []),
       ...reasonsFor("warn"),
     ],
