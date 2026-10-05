@@ -168,13 +168,17 @@ describe("gateFlags for excluded files", () => {
     ).toBe(true);
   });
 
-  test("counts a drizzle migration journal change beside a README as code, since it decides which migrations run", () => {
+  test("counts a drizzle migration journal hidden by a custom exclusion as code, since it decides which migrations run", () => {
     expect(
       withExcluded(
         [file("README.md")],
-        [excluded("packages/db/drizzle/meta/_journal.json", "packages/db/drizzle/meta/**")],
+        [excluded("packages/db/drizzle/meta/_journal.json", "**/drizzle/meta/**")],
       ),
     ).toBe(true);
+  });
+
+  test("counts a kept drizzle migration journal as code", () => {
+    expect(withExcluded([file("packages/db/drizzle/meta/_journal.json")], [])).toBe(true);
   });
 
   test("still excludes archives from scoring while counting them as code", () => {
@@ -210,6 +214,8 @@ describe("gateFlags for excluded files", () => {
     "apps/web/comment-census.json",
     ".release-please-manifest.json",
     "packages/core/CHANGELOG.md",
+    "packages/db/drizzle/meta/0007_snapshot.json",
+    "apps/api/src/drizzle/meta/0000_snapshot.json",
   ];
 
   for (const path of inert) {
@@ -234,6 +240,9 @@ describe("gateFlags for excluded files", () => {
     "crates/core/Cargo.lock",
     "poetry.lock",
     "go.sum",
+    "packages/db/drizzle/meta/_journal.json",
+    "packages/db/drizzle/meta/notes.json",
+    "packages/db/drizzle/0007_snapshot.json",
   ];
 
   for (const path of notInert) {
@@ -250,6 +259,15 @@ describe("gateFlags unreviewedExcluded", () => {
 
   test("counts every excluded file that is not inert", () => {
     expect(count(["gradle/wrapper/gradle-wrapper.jar", "bun.lock", "logo.png"])).toBe(2);
+  });
+
+  test("does not count generated drizzle snapshots", () => {
+    expect(
+      count([
+        "packages/db/drizzle/meta/0006_snapshot.json",
+        "packages/db/drizzle/meta/0007_snapshot.json",
+      ]),
+    ).toBe(0);
   });
 
   test("is zero when every excluded file is inert", () => {

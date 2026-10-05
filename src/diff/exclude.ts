@@ -29,10 +29,12 @@ export const BINARY_ASSET_EXTENSIONS: readonly string[] = [
   "jar",
 ];
 
+export const DRIZZLE_SNAPSHOT_GLOB = "**/drizzle/meta/*_snapshot.json";
+
 export const DEFAULT_EXCLUDE_GLOBS: string[] = [
   ...new Set([
     ...DEFAULT_IGNORE_GLOBS,
-    "packages/db/drizzle/meta/**",
+    DRIZZLE_SNAPSHOT_GLOB,
     "**/bun.lock",
     "**/*census.json",
     "CHANGELOG.md",

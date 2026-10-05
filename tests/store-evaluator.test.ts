@@ -115,6 +115,12 @@ describe("evaluatorFingerprint over the evaluator semantics", () => {
       evaluatorFingerprint("jev-latest", defaults, questions(), EVALUATOR_SEMANTICS + 1),
     ).not.toBe(evaluatorFingerprint("jev-latest", defaults));
   });
+
+  test("never reuses a record scored before the drizzle journal joined the scored diff", () => {
+    expect(evaluatorFingerprint("jev-latest", defaults)).not.toBe(
+      evaluatorFingerprint("jev-latest", defaults, questions(), 1),
+    );
+  });
 });
 
 describe("evaluatorFingerprint over the gate config", () => {

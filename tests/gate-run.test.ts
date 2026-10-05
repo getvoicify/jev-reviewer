@@ -407,6 +407,60 @@ describe("runGate: diff and flags", () => {
     expect(io.failures).toEqual([]);
   });
 
+  test("succeeds when a generated drizzle snapshot changes beside a code file", async () => {
+    const { check, io, jev } = await run({
+      files: [{ path: "src/app.ts" }, { path: "packages/db/drizzle/meta/0007_snapshot.json" }],
+    });
+    expect(jev.requests).toHaveLength(1);
+    expect(jev.requests[0]?.state.diff).not.toContain("0007_snapshot.json");
+    expect(check.conclusion).toBe("success");
+    expect(io.failures).toEqual([]);
+    expect(check.summary).not.toContain(UNREVIEWED_EXCLUDED_REASON);
+  });
+
+  test("treats a snapshot under any drizzle folder as generated", async () => {
+    const { check, jev } = await run({
+      files: [{ path: "src/app.ts" }, { path: "apps/api/drizzle/meta/0001_snapshot.json" }],
+    });
+    expect(jev.requests[0]?.state.diff).not.toContain("0001_snapshot.json");
+    expect(check.conclusion).toBe("success");
+  });
+
+  test("scores the drizzle journal with the rest of the diff, since it decides which migrations run", async () => {
+    const { check, io, jev } = await run({
+      files: [
+        { path: "packages/db/drizzle/0007_add_index.sql" },
+        { path: "packages/db/drizzle/meta/_journal.json" },
+        { path: "packages/db/drizzle/meta/0007_snapshot.json" },
+      ],
+    });
+    expect(jev.requests).toHaveLength(1);
+    expect(jev.requests[0]?.state.diff).toContain("packages/db/drizzle/meta/_journal.json");
+    expect(jev.requests[0]?.state.diff).toContain("packages/db/drizzle/0007_add_index.sql");
+    expect(check.conclusion).toBe("success");
+    expect(io.failures).toEqual([]);
+  });
+
+  test("scores a journal-only change instead of passing it unscored", async () => {
+    const { jev } = await run({ files: [{ path: "packages/db/drizzle/meta/_journal.json" }] });
+    expect(jev.requests).toHaveLength(1);
+    expect(jev.requests[0]?.state.diff).toContain("_journal.json");
+  });
+
+  test("succeeds without scoring when only drizzle snapshots changed", async () => {
+    const { check, io, jev, records } = await run({
+      files: [
+        { path: "packages/db/drizzle/meta/0006_snapshot.json" },
+        { path: "packages/db/drizzle/meta/0007_snapshot.json" },
+      ],
+    });
+    expect(check.conclusion).toBe("success");
+    expect(check.summary).toContain("no changes to score");
+    expect(io.failures).toEqual([]);
+    expect(jev.requests).toHaveLength(0);
+    expect(records.uploads).toEqual([]);
+  });
+
   test("skips an oversized partition and turns the verdict neutral", async () => {
     const { check, jev } = await run({
       config: SMALL_BUDGET,
