@@ -2,7 +2,7 @@ import picomatch from "picomatch";
 import { DEFAULT_IGNORE_GLOBS } from "../collect";
 import type { DiffFile, ExcludedFile } from "./types";
 
-const BINARY_ASSET_EXTENSIONS = [
+export const INERT_ASSET_EXTENSIONS: readonly string[] = [
   "png",
   "jpg",
   "jpeg",
@@ -16,13 +16,17 @@ const BINARY_ASSET_EXTENSIONS = [
   "otf",
   "eot",
   "pdf",
-  "zip",
-  "gz",
-  "jar",
   "mp3",
   "mp4",
   "wav",
   "webm",
+];
+
+export const BINARY_ASSET_EXTENSIONS: readonly string[] = [
+  ...INERT_ASSET_EXTENSIONS,
+  "zip",
+  "gz",
+  "jar",
 ];
 
 export const DEFAULT_EXCLUDE_GLOBS: string[] = [
