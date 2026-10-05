@@ -168,6 +168,15 @@ describe("gateFlags for excluded files", () => {
     ).toBe(true);
   });
 
+  test("counts a drizzle migration journal change beside a README as code, since it decides which migrations run", () => {
+    expect(
+      withExcluded(
+        [file("README.md")],
+        [excluded("packages/db/drizzle/meta/_journal.json", "packages/db/drizzle/meta/**")],
+      ),
+    ).toBe(true);
+  });
+
   test("still excludes archives from scoring while counting them as code", () => {
     const archives = ["lib/tool.jar", "release/bundle.zip", "vendor/pkg.tar.gz"];
     const { kept, excluded: dropped } = excludePaths(archives.map((path) => file(path)));
@@ -201,7 +210,6 @@ describe("gateFlags for excluded files", () => {
     "apps/web/comment-census.json",
     ".release-please-manifest.json",
     "packages/core/CHANGELOG.md",
-    "packages/db/drizzle/meta/_journal.json",
   ];
 
   for (const path of inert) {
