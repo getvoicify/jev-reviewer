@@ -39,7 +39,6 @@ const INERT_EXCLUDED_GLOBS: readonly string[] = [
   "**/*census.json",
   "**/.release-please-manifest.json",
   "**/CHANGELOG.md",
-  "packages/db/drizzle/meta/**",
 ];
 
 const steersAgents = picomatch([...AGENT_STEERING_GLOBS], { dot: true, nocase: true });
