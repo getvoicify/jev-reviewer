@@ -172,10 +172,13 @@ describe("decodeRecord", () => {
     expect(decodeRecord(line)).toBeNull();
   });
 
-  test("returns null when the decoded bytes are not UTF-8", () => {
-    const line = `${PREFIX}${Buffer.from([0x22, 0xff, 0xfe, 0x22]).toString("base64url")}${SUFFIX}`;
+  test("returns null when a valid record carries bytes that are not UTF-8", () => {
+    const json = Buffer.from(JSON.stringify(withSummary("@@")), "utf8");
+    const at = json.indexOf("@@");
+    json[at] = 0xff;
+    json[at + 1] = 0xfe;
 
-    expect(decodeRecord(line)).toBeNull();
+    expect(decodeRecord(`${PREFIX}${json.toString("base64url")}${SUFFIX}`)).toBeNull();
   });
 
   test("returns null when the JSON is not an object", () => {
