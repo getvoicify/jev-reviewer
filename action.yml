@@ -5,6 +5,13 @@ description: >-
 author: voicify
 
 inputs:
+  mode:
+    description: >-
+      review posts an advisory review; gate scores the PR's cumulative
+      change and fails the job unless it passes. See the README for
+      the permissions and workflow gate mode needs.
+    required: false
+    default: review
   typesafe-api-key:
     description: >-
       TypeSafe API key. Falls back to the TYPESAFE_API_KEY
@@ -55,6 +62,42 @@ inputs:
       add custom questions whose answers appear in the comment;
       replace: true starts from an empty set. Empty = built-ins.
     required: false
+  gate-config-path:
+    description: Gate mode. Repo path of the gate config, read from the PR base branch.
+    required: false
+    default: .github/jev-gate.json
+  trusted-workflow-path:
+    description: >-
+      Gate mode, required. The workflow path (as workflow runs report
+      it) whose stored records the gate trusts.
+    required: false
+  trusted-workflow-event:
+    description: >-
+      Gate mode. The event the gate runs on and trusts records from.
+      Only pull_request_target is accepted: under pull_request a PR's own
+      copy of the workflow could upload forged records.
+    required: false
+    default: pull_request_target
+  override-label:
+    description: >-
+      Gate mode. The label that accepts a neutral result when an
+      override actor applied it after the latest push.
+    required: false
+    default: jev-gate:override
+  override-actors:
+    description: >-
+      Gate mode. Newline- or comma-separated logins allowed to apply
+      the override label. Empty means nobody can override.
+    required: false
+    default: ""
+  check-name:
+    description: Gate mode. Name of the check run the gate posts.
+    required: false
+    default: jev-gate
+  comment-author:
+    description: Gate mode. Login whose gate comment is edited in place.
+    required: false
+    default: github-actions[bot]
 
 outputs:
   findings-json:

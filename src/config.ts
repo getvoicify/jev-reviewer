@@ -31,13 +31,18 @@ export interface RawInputs {
   questionsFile: string;
 }
 
-export function parseConfig(inputs: RawInputs, env: Record<string, string | undefined>): Config {
-  const apiKey = inputs.apiKey.trim() || env.TYPESAFE_API_KEY?.trim() || "";
+function resolveApiKey(input: string, env: Record<string, string | undefined>): string {
+  const apiKey = input.trim() || env.TYPESAFE_API_KEY?.trim() || "";
   if (!apiKey) {
     throw new Error(
       "No TypeSafe API key: set the typesafe-api-key input or the TYPESAFE_API_KEY environment variable",
     );
   }
+  return apiKey;
+}
+
+export function parseConfig(inputs: RawInputs, env: Record<string, string | undefined>): Config {
+  const apiKey = resolveApiKey(inputs.apiKey, env);
 
   const failOn = inputs.failOn.trim() as FailOn;
   if (!FAIL_ON_VALUES.includes(failOn)) {
@@ -84,4 +89,68 @@ function parseBool(value: string, name: string): boolean {
   if (trimmed === "true") return true;
   if (trimmed === "false") return false;
   throw new Error(`${name} must be "true" or "false", got "${value}"`);
+}
+
+export type Mode = "review" | "gate";
+
+export interface RawGateInputs {
+  apiKey: string;
+  githubToken: string;
+  model: string;
+  gateConfigPath: string;
+  trustedWorkflowPath: string;
+  trustedWorkflowEvent: string;
+  overrideLabel: string;
+  overrideActors: string;
+  checkName: string;
+  commentAuthor: string;
+}
+
+export interface GateModeConfig {
+  apiKey: string;
+  githubToken: string;
+  model: string;
+  gateConfigPath: string;
+  trustedWorkflow: { path: string; event: string };
+  overrideLabel: string;
+  overrideActors: string[];
+  checkName: string;
+  commentAuthor: string;
+}
+
+const MODES: readonly Mode[] = ["review", "gate"];
+
+export function parseMode(value: string): Mode {
+  const mode = value.trim() || "review";
+  if (!MODES.includes(mode as Mode)) {
+    throw new Error(`mode must be one of ${MODES.join(", ")}, got "${value}"`);
+  }
+  return mode as Mode;
+}
+
+export function parseGateInputs(
+  inputs: RawGateInputs,
+  env: Record<string, string | undefined>,
+): GateModeConfig {
+  const apiKey = resolveApiKey(inputs.apiKey, env);
+  const path = inputs.trustedWorkflowPath.trim();
+  if (!path) throw new Error("trusted-workflow-path is required in gate mode");
+  const event = inputs.trustedWorkflowEvent.trim() || "pull_request_target";
+  if (event !== "pull_request_target") {
+    throw new Error(`trusted-workflow-event must be pull_request_target, got "${event}"`);
+  }
+  return {
+    apiKey,
+    githubToken: inputs.githubToken,
+    model: inputs.model.trim() || "jev-latest",
+    gateConfigPath: inputs.gateConfigPath.trim() || ".github/jev-gate.json",
+    trustedWorkflow: { path, event },
+    overrideLabel: inputs.overrideLabel.trim() || "jev-gate:override",
+    overrideActors: inputs.overrideActors
+      .split(/[\n,]/)
+      .map((login) => login.trim())
+      .filter((login) => login.length > 0),
+    checkName: inputs.checkName.trim() || "jev-gate",
+    commentAuthor: inputs.commentAuthor.trim() || "github-actions[bot]",
+  };
 }

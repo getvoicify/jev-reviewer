@@ -203,11 +203,27 @@ describe("renderCheckOutput summary", () => {
     expect(bullets).toEqual(failing.reasons.map((reason) => `- ${reason}`));
   });
 
-  test("says so when an evaluation was reused from the previous push without a Jev call", () => {
-    const reused = renderCheckOutput(input({ reused: true })).summary;
+  test("says when the previous push's evaluation was reused", () => {
+    const { summary } = renderCheckOutput(input({ reused: "previous" }));
+    expect(summary).toContain(
+      "Reused the previous push's evaluation (same patch-id), so no Jev call was made.",
+    );
+    expect(summary).not.toContain("this head's");
+  });
+
+  test("says when this head's earlier evaluation was reused", () => {
+    const { summary } = renderCheckOutput(input({ reused: "head" }));
+    expect(summary).toContain(
+      "Reused this head's earlier evaluation (re-run, reopen or override), so no Jev call was made.",
+    );
+    expect(summary).not.toContain("previous push");
+    expect(renderComment(input({ reused: "head" }))).toContain(
+      "Reused this head's earlier evaluation (re-run, reopen or override), so no Jev call was made.",
+    );
+  });
+
+  test("says nothing about reuse for a fresh score", () => {
     const fresh = renderCheckOutput(input({ reused: false })).summary;
-    expect(reused).toMatch(/reused from the previous push/i);
-    expect(reused).toMatch(/no Jev call/i);
     expect(fresh).not.toMatch(/reused/i);
     expect(fresh).toMatch(/scored fresh/i);
   });
@@ -221,11 +237,12 @@ describe("renderCheckOutput summary", () => {
     expect(summary).toContain("Oversized files: 3");
   });
 
-  test("names the model and the first seven characters of the head", () => {
-    const { summary } = renderCheckOutput(input({ model: "jev-latest", head: "abcdef0123456" }));
+  test("names the model and the full evaluated head in the check and the comment", () => {
+    const head = "abcdef0123456789abcdef0123456789abcdef01";
+    const { summary } = renderCheckOutput(input({ model: "jev-latest", head }));
     expect(summary).toContain("jev-latest");
-    expect(summary).toContain("abcdef0");
-    expect(summary).not.toContain("abcdef01");
+    expect(summary).toContain(`Head: \`${head}\``);
+    expect(renderComment(input({ head }))).toContain(`Head: \`${head}\``);
   });
 
   test("never lists oversized file names, which a pull request controls", () => {
@@ -522,7 +539,7 @@ describe("renderComment", () => {
   });
 
   test("carries the summary and the metric table", () => {
-    const rendered = input({ verdict: failing, reused: true });
+    const rendered = input({ verdict: failing, reused: "previous" });
     const comment = renderComment(rendered);
     expect(comment).toContain(renderCheckOutput(rendered).summary);
     expect(tableRows(comment).map((cells) => cells[0])).toEqual(metricKeys.map(labelOf));

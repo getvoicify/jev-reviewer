@@ -2,7 +2,7 @@ import type { GitPort } from "../diff/git";
 import { partition } from "../diff/partition";
 import { cumulativeDiff } from "../diff/source";
 import type { DiffFile, Partition } from "../diff/types";
-import type { GateCheckRunParams } from "../github";
+import type { GateCheckRunParams, OverrideQuery } from "../github";
 import { JevError, type JevErrorCode, type JevPort } from "../jev";
 import {
   type ComparisonEntry,
@@ -22,6 +22,7 @@ import { gateFlags } from "./flags";
 import {
   buildGateAnnotations,
   GATE_COMMENT_MARKER,
+  type ReuseSource,
   renderCheckOutput,
   renderComment,
 } from "./report";
@@ -38,7 +39,8 @@ export interface GateContext {
   headSha: string;
   beforeSha: string | null;
   eventAction: string;
-  labels: string[];
+  triggerLabel: string | null;
+  sender: string | null;
 }
 
 export interface GateSettings {
@@ -46,11 +48,14 @@ export interface GateSettings {
   trustedWorkflow: WorkflowRunOrigin;
   gateConfigPath?: string;
   overrideLabel?: string;
+  overrideActors?: string[];
   checkName?: string;
   commentAuthor?: string;
 }
 
 export interface GateGitHubPort {
+  overrideApproved(query: OverrideQuery): Promise<boolean>;
+  removeLabel(owner: string, repo: string, prNumber: number, label: string): Promise<void>;
   getFileContent(owner: string, repo: string, ref: string, path: string): Promise<string>;
   createGateCheckRun(owner: string, repo: string, params: GateCheckRunParams): Promise<void>;
   upsertComment(
@@ -85,7 +90,7 @@ type Outcome = {
   verdict: Verdict;
   evaluation: Evaluation;
   comparison?: ComparisonEntry[];
-  reused: boolean;
+  reused: ReuseSource;
   config: GateConfig;
   partitions: Partition[];
   excludedCount: number;
@@ -94,7 +99,8 @@ type Outcome = {
 const UNAVAILABLE_CODES: readonly JevErrorCode[] = ["api_error", "connection", "timeout"];
 const SALVAGEABLE_SAVE_STATUS = 409;
 const ANNOTATIONS_REJECTED_STATUS = 422;
-const BEFORE_SHA = /^(?!0{40}$)[0-9a-f]{40}$/;
+const PUSH_ACTIONS: readonly string[] = ["synchronize", "reopened"];
+const COMMIT_SHA = /^(?!0{40}$)[0-9a-f]{40}$/;
 
 const NO_EVALUATION: Evaluation = {
   metrics: Object.fromEntries(
@@ -121,6 +127,7 @@ function withDefaults(settings: GateSettings): Settings {
     trustedWorkflow: settings.trustedWorkflow,
     gateConfigPath: orDefault(settings.gateConfigPath, ".github/jev-gate.json"),
     overrideLabel: orDefault(settings.overrideLabel, "jev-gate:override"),
+    overrideActors: settings.overrideActors ?? [],
     checkName: orDefault(settings.checkName, "jev-gate"),
     commentAuthor: orDefault(settings.commentAuthor, "github-actions[bot]"),
   };
@@ -144,6 +151,7 @@ function settled(
 
 export async function runGate(deps: GateDeps): Promise<void> {
   const settings = withDefaults(deps.settings);
+  await clearStaleOverride(deps, settings);
   const outcome = await decide(deps, settings);
   if (outcome.verdict.conclusion === "neutral") {
     outcome.verdict.reasons.push(
@@ -151,7 +159,20 @@ export async function runGate(deps: GateDeps): Promise<void> {
     );
   }
   await report(deps, settings, outcome);
-  conclude(deps, settings, outcome.verdict);
+  await conclude(deps, settings, outcome.verdict);
+}
+
+async function clearStaleOverride(deps: GateDeps, settings: Settings): Promise<void> {
+  const { context, github, io } = deps;
+  if (!PUSH_ACTIONS.includes(context.eventAction)) return;
+  try {
+    await github.removeLabel(context.owner, context.repo, context.prNumber, settings.overrideLabel);
+    io.info(`removed the "${settings.overrideLabel}" label, so no earlier push's override applies`);
+  } catch (error) {
+    io.warning(
+      `Could not remove the "${settings.overrideLabel}" label, so no override is honoured on this run: ${messageOf(error)}`,
+    );
+  }
 }
 
 async function readGateConfig(deps: GateDeps, settings: Settings): Promise<GateConfig> {
@@ -210,7 +231,7 @@ async function decide(deps: GateDeps, settings: Settings): Promise<Outcome> {
       ...shared,
       verdict: decideVerdict(parts, config, flags),
       evaluation: plan.record.evaluation,
-      reused: true,
+      reused: previous?.head === diff.head ? "head" : "previous",
     };
   }
 
@@ -270,22 +291,28 @@ async function scoreParts(
 }
 
 async function loadPrevious(deps: GateDeps, settings: Settings) {
-  const { context, records, io } = deps;
-  const { beforeSha } = context;
-  if (context.eventAction !== "synchronize" || beforeSha === null || !BEFORE_SHA.test(beforeSha)) {
-    return null;
-  }
+  const { context, io } = deps;
   try {
-    return await loadPreviousRecord(records, {
-      owner: context.owner,
-      repo: context.repo,
-      sha: beforeSha,
-      trustedWorkflow: settings.trustedWorkflow,
-    });
+    return (
+      (await loadRecordOf(deps, settings, context.headSha)) ??
+      (context.eventAction === "synchronize"
+        ? await loadRecordOf(deps, settings, context.beforeSha)
+        : null)
+    );
   } catch (error) {
     io.warning(`Could not load the previous gate record, so scoring afresh: ${messageOf(error)}`);
     return null;
   }
+}
+
+async function loadRecordOf(deps: GateDeps, settings: Settings, sha: string | null) {
+  if (sha === null || !COMMIT_SHA.test(sha)) return null;
+  return loadPreviousRecord(deps.records, {
+    owner: deps.context.owner,
+    repo: deps.context.repo,
+    sha,
+    trustedWorkflow: settings.trustedWorkflow,
+  });
 }
 
 async function save(deps: GateDeps, record: EvaluationRecord): Promise<boolean> {
@@ -348,14 +375,42 @@ async function report(deps: GateDeps, settings: Settings, outcome: Outcome): Pro
   );
 }
 
-function conclude(deps: GateDeps, settings: Settings, verdict: Verdict): void {
+async function conclude(deps: GateDeps, settings: Settings, verdict: Verdict): Promise<void> {
   const first = verdict.reasons[0] ?? `Jev gate: ${verdict.conclusion}`;
   if (verdict.conclusion === "success") return;
-  if (verdict.conclusion === "neutral" && deps.context.labels.includes(settings.overrideLabel)) {
+  if (
+    verdict.conclusion === "neutral" &&
+    appliedByOverrideActor(deps.context, settings) &&
+    (await overrideApproved(deps, settings))
+  ) {
     deps.io.warning(
       `Neutral gate result accepted by the "${settings.overrideLabel}" label: ${first}`,
     );
     return;
   }
   deps.io.fail(first);
+}
+
+function appliedByOverrideActor(context: GateContext, settings: Settings): boolean {
+  return (
+    context.eventAction === "labeled" &&
+    context.triggerLabel === settings.overrideLabel &&
+    settings.overrideActors.some((actor) => actor === context.sender)
+  );
+}
+
+async function overrideApproved(deps: GateDeps, settings: Settings): Promise<boolean> {
+  const { owner, repo, prNumber } = deps.context;
+  try {
+    return await deps.github.overrideApproved({
+      owner,
+      repo,
+      prNumber,
+      label: settings.overrideLabel,
+      actors: settings.overrideActors,
+    });
+  } catch (error) {
+    deps.io.warning(`Could not confirm the override, so it is not honoured: ${messageOf(error)}`);
+    return false;
+  }
 }
