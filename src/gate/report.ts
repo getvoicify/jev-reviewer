@@ -21,7 +21,7 @@ export type GateReportInput = {
   verdict: Verdict;
   evaluation: Evaluation;
   comparison?: ComparisonEntry[];
-  reused: boolean;
+  reused: ReuseSource;
   partitions: number;
   oversizedFiles: string[];
   excludedCount: number;
@@ -62,6 +62,14 @@ function capCodePoints(value: string, limit: number): string {
   const points = Array.from(value);
   return points.length > limit ? `${points.slice(0, limit - 1).join("")}…` : value;
 }
+
+export type ReuseSource = "head" | "previous" | false;
+
+const PROVENANCE: Record<`${ReuseSource}`, string> = {
+  head: "Reused this head's earlier evaluation (re-run, reopen or override), so no Jev call was made.",
+  previous: "Reused the previous push's evaluation (same patch-id), so no Jev call was made.",
+  false: "Evaluation scored fresh for this push.",
+};
 
 export function renderCheckOutput(input: GateReportInput): GateCheckOutput {
   const table = renderTable(input);
@@ -125,9 +133,7 @@ function renderSummary(input: GateReportInput): string {
     verdict.reasons.length === 0
       ? ["- none"]
       : verdict.reasons.map((reason) => `- ${inline(reason)}`);
-  const provenance = input.reused
-    ? "Evaluation reused from the previous push (same patch-id), so no Jev call was made."
-    : "Evaluation scored fresh for this push.";
+  const provenance = PROVENANCE[`${input.reused}`];
   return [
     `**Conclusion:** ${verdict.conclusion}`,
     "",

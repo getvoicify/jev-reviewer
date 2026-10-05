@@ -22,6 +22,7 @@ import { gateFlags } from "./flags";
 import {
   buildGateAnnotations,
   GATE_COMMENT_MARKER,
+  type ReuseSource,
   renderCheckOutput,
   renderComment,
 } from "./report";
@@ -89,7 +90,7 @@ type Outcome = {
   verdict: Verdict;
   evaluation: Evaluation;
   comparison?: ComparisonEntry[];
-  reused: boolean;
+  reused: ReuseSource;
   config: GateConfig;
   partitions: Partition[];
   excludedCount: number;
@@ -230,7 +231,7 @@ async function decide(deps: GateDeps, settings: Settings): Promise<Outcome> {
       ...shared,
       verdict: decideVerdict(parts, config, flags),
       evaluation: plan.record.evaluation,
-      reused: true,
+      reused: previous?.head === diff.head ? "head" : "previous",
     };
   }
 
