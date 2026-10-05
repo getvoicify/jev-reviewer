@@ -1047,6 +1047,48 @@ describe("runGate: keeping an accepted override on the same head", () => {
     expect(lastSaved(records)?.override).toBeUndefined();
   });
 
+  test("does not carry the override onto a rescore after the gate config changed", async () => {
+    const { io, jev, github, records } = await run({
+      previous: previousRecord({ head: HEAD, override: ACCEPTED }),
+      config: '{"version":1,"minConfidence":0.6}',
+      files: WITH_JAR,
+      approved: true,
+      context: labeledBy("claude-agent[bot]", "needs-review"),
+      settings: OWNER_ACTORS,
+    });
+    expect(jev.requests).toHaveLength(1);
+    expect(io.failures).toEqual([NEUTRAL_FAILURE]);
+    expect(github.overrideQueries).toEqual([]);
+    expect(lastSaved(records)).not.toBeNull();
+    expect(lastSaved(records)?.override).toBeUndefined();
+  });
+
+  test("does not carry the override when a rescore after a config change finds Jev unavailable", async () => {
+    const { io, records } = await run({
+      previous: previousRecord({ head: HEAD, override: ACCEPTED }),
+      config: '{"version":1,"minConfidence":0.6}',
+      replies: UNAVAILABLE(),
+      approved: true,
+      context: labeledBy("claude-agent[bot]", "needs-review"),
+      settings: OWNER_ACTORS,
+    });
+    expect(io.failures).toEqual(["evaluator unavailable: connection"]);
+    expect(records.uploads).toEqual([]);
+  });
+
+  test("does not carry the override onto a rescore under another model on the same head", async () => {
+    const { io, jev, records } = await run({
+      previous: previousRecord({ head: HEAD, override: ACCEPTED }),
+      files: WITH_JAR,
+      approved: true,
+      context: labeledBy("claude-agent[bot]", "needs-review"),
+      settings: { ...OWNER_ACTORS, model: "jev-other-model" },
+    });
+    expect(jev.requests).toHaveLength(1);
+    expect(io.failures).toEqual([NEUTRAL_FAILURE]);
+    expect(lastSaved(records)?.override).toBeUndefined();
+  });
+
   test("never overrides a failure, even when the head's record carries an accepted override", async () => {
     const { io, github } = await run({
       previous: previousRecord({

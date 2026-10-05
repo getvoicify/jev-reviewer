@@ -222,7 +222,7 @@ async function decide(deps: GateDeps, settings: Settings): Promise<Outcome> {
   const scorable = partitions.filter((part) => !part.oversized);
   io.info(`plan: ${plan.kind}`);
   io.info(`partitions: ${partitions.length} (${partitions.length - scorable.length} oversized)`);
-  const carried = previous?.head === context.headSha ? previous.override : undefined;
+  const carried = plan.kind === "reuse" ? plan.record.override : undefined;
   const shared = { config, partitions, excludedCount: diff.excluded.length, carried };
 
   if (plan.kind === "empty") {

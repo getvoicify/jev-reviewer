@@ -171,8 +171,9 @@ label triggers, when all of these hold:
 
 That run reuses the head's stored evaluation, when there is one, without calling Jev, and saves the
 head's record again with the acceptance (`override: { actor, labeledAt }`). A later run on the same
-head, for any label event, honours that stored acceptance again only while the same live check
-passes, so an unrelated label change no longer fails an accepted PR. A failing verdict is never
+head, for any label event, honours that stored acceptance again only when it reuses that stored
+evaluation (same model, gate config and patch-id) and the same live check passes, so an unrelated
+label change no longer fails an accepted PR, while a rescore never inherits it. A failing verdict is never
 overridden, and a record carried over from an earlier push never carries its acceptance.
 
 Every `synchronize` and `reopened` run removes the label before it evaluates and honours no override.
