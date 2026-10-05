@@ -157,7 +157,6 @@ describe("GitHubClient.createGateCheckRun", () => {
         return { data: {} };
       },
     };
-    // SAFETY: fake transport standing in for octokit's checks endpoints only.
     const octokit = { rest: { checks } } as unknown as Octokit;
     return { octokit, created, updated };
   }
