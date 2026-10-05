@@ -5,7 +5,9 @@
 # tests/required-workflow.test.ts.
 #
 # A ruleset runs this only on the default pull_request_target activity types
-# and ignores any filter here, so labeled events never start it.
+# and ignores any filter here, so labeled events never start it and the
+# override label cannot apply. The owner accepts a neutral result by merging
+# with the org ruleset's OrganizationAdmin pull_request bypass instead.
 #
 # trusted-workflow-path is a placeholder that matches no run, so no stored
 # record is trusted until the canary run reports the real path (runbook step 3).
@@ -40,4 +42,3 @@ jobs:
           mode: gate
           typesafe-api-key: ${{ secrets.TYPESAFE_API_KEY }}
           trusted-workflow-path: unverified-until-the-canary-run
-          override-actors: verygreenboi

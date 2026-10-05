@@ -95,12 +95,11 @@ describe("the ruleset-required gate workflow", () => {
     });
   });
 
-  test("runs the action in gate mode with the owner as the only override actor", async () => {
+  test("runs the action in gate mode with no override label actors, since a label never starts a required run", async () => {
     expect((await gateJob()).steps[1]?.with).toEqual({
       mode: "gate",
       "typesafe-api-key": expression("secrets.TYPESAFE_API_KEY"),
       "trusted-workflow-path": UNVERIFIED_TRUSTED_PATH,
-      "override-actors": "verygreenboi",
     });
   });
 });
