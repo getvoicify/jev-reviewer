@@ -1,7 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import type { Octokit } from "octokit";
+import { GATE_COMMENT_MARKER } from "../src/gate/report";
 import { GitHubClient, selectUpsertTarget } from "../src/github";
-import { COMMENT_MARKER } from "../src/report";
+import { type Annotation, COMMENT_MARKER } from "../src/report";
 
 interface ListedComment {
   id: number;
@@ -120,5 +121,96 @@ describe("GitHubClient.upsertComment", () => {
 
     expect(issues.created).toHaveLength(0);
     expect(issues.updated).toHaveLength(0);
+  });
+});
+
+describe("GitHubClient.upsertComment with a marker", () => {
+  test("updates the comment carrying the given marker, not the review marker", async () => {
+    const { octokit, issues } = fakeOctokit([
+      { id: 1, body: `review ${COMMENT_MARKER}` },
+      { id: 2, body: `gate ${GATE_COMMENT_MARKER}` },
+    ]);
+    await new GitHubClient(octokit).upsertComment("o", "r", 7, "next", GATE_COMMENT_MARKER);
+    expect(issues.updated).toEqual([{ commentId: 2, body: "next" }]);
+    expect(issues.created).toHaveLength(0);
+  });
+
+  test("creates a gate comment when only the review comment exists", async () => {
+    const { octokit, issues } = fakeOctokit([{ id: 1, body: `review ${COMMENT_MARKER}` }]);
+    await new GitHubClient(octokit).upsertComment("o", "r", 7, "gate", GATE_COMMENT_MARKER);
+    expect(issues.created).toEqual([{ issueNumber: 7, body: "gate" }]);
+    expect(issues.updated).toHaveLength(0);
+  });
+});
+
+describe("GitHubClient.createGateCheckRun", () => {
+  function fakeChecks() {
+    const created: Record<string, unknown>[] = [];
+    const updated: Record<string, unknown>[] = [];
+    const checks = {
+      async create(params: Record<string, unknown>) {
+        created.push(params);
+        return { data: { id: 41 } };
+      },
+      async update(params: Record<string, unknown>) {
+        updated.push(params);
+        return { data: {} };
+      },
+    };
+    // SAFETY: fake transport standing in for octokit's checks endpoints only.
+    const octokit = { rest: { checks } } as unknown as Octokit;
+    return { octokit, created, updated };
+  }
+
+  const annotation = (line: number): Annotation => ({
+    path: ".github",
+    start_line: line,
+    end_line: line,
+    annotation_level: "notice",
+    title: "t",
+    message: "m",
+  });
+
+  test("posts a completed run with the gate's name, conclusion and output", async () => {
+    const { octokit, created } = fakeChecks();
+    await new GitHubClient(octokit).createGateCheckRun("o", "r", {
+      name: "jev-gate",
+      headSha: "abc",
+      conclusion: "neutral",
+      title: "T",
+      summary: "S",
+      text: "X",
+      annotations: [annotation(1)],
+    });
+    expect(created).toHaveLength(1);
+    expect(created[0]).toMatchObject({
+      owner: "o",
+      repo: "r",
+      name: "jev-gate",
+      head_sha: "abc",
+      status: "completed",
+      conclusion: "neutral",
+      output: { title: "T", summary: "S", text: "X", annotations: [annotation(1)] },
+    });
+  });
+
+  test("sends annotations past the first 50 as updates to the same run", async () => {
+    const { octokit, created, updated } = fakeChecks();
+    const all = Array.from({ length: 51 }, (_, i) => annotation(i + 1));
+    await new GitHubClient(octokit).createGateCheckRun("o", "r", {
+      name: "jev-gate",
+      headSha: "abc",
+      conclusion: "success",
+      title: "T",
+      summary: "S",
+      text: "X",
+      annotations: all,
+    });
+    expect((created[0]?.output as { annotations: unknown[] }).annotations).toHaveLength(50);
+    expect(updated).toHaveLength(1);
+    expect(updated[0]).toMatchObject({
+      check_run_id: 41,
+      output: { title: "T", summary: "S", annotations: [annotation(51)] },
+    });
   });
 });
