@@ -121,6 +121,12 @@ describe("evaluatorFingerprint over the evaluator semantics", () => {
       evaluatorFingerprint("jev-latest", defaults, questions(), 1),
     );
   });
+
+  test("never reuses a record scored while lockfiles such as uv.lock were still sent to Jev", () => {
+    expect(evaluatorFingerprint("jev-latest", defaults)).not.toBe(
+      evaluatorFingerprint("jev-latest", defaults, questions(), 2),
+    );
+  });
 });
 
 describe("evaluatorFingerprint over the gate config", () => {
@@ -143,9 +149,9 @@ describe("evaluatorFingerprint over the gate config", () => {
     });
   }
 
-  test("keeps the hash an uncapped default config had before maxChangedLines existed", () => {
+  test("pins the uncapped default config's hash, which leaves an unset maxChangedLines out", () => {
     expect(evaluatorFingerprint("jev-latest", defaults)).toBe(
-      "9dfe2b931d8acff6724f47eb8f445adb00e5e2718fc6128f5fb8b2507d871e79",
+      "95ed434ec1915955c48d21fd902c59384fdb7109a2d810ae752a051aee5b4541",
     );
   });
 

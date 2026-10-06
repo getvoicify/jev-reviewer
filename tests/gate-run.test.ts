@@ -392,6 +392,17 @@ describe("runGate: diff and flags", () => {
     expect(records.uploads).toEqual([]);
   });
 
+  test("goes neutral without calling Jev when only a uv.lock changes, as on tutela #479", async () => {
+    const { check, io, jev, records } = await run({
+      files: [{ path: "apps/orchestrator/uv.lock", lines: 231 }],
+    });
+    expect(jev.requests).toHaveLength(0);
+    expect(check.conclusion).toBe("neutral");
+    expect(io.failures).toEqual(["only excluded files changed, so nothing could be scored"]);
+    expect(check.summary).toContain("Excluded files: 1");
+    expect(records.uploads).toEqual([]);
+  });
+
   test("goes neutral when an excluded jar changes beside a code file", async () => {
     const { check, io, jev } = await run({
       files: [{ path: "src/app.ts" }, { path: "gradle/wrapper/gradle-wrapper.jar" }],

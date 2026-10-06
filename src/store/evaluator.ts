@@ -3,7 +3,7 @@ import { DEFAULT_EXCLUDE_GLOBS } from "../diff/exclude";
 import type { GateConfig } from "../gate/config";
 import { buildMetricQuestions, type MetricQuestions } from "../metrics";
 
-export const EVALUATOR_SEMANTICS = 2;
+export const EVALUATOR_SEMANTICS = 3;
 
 function canonical(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(canonical);
