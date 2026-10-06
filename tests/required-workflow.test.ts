@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { parse as parseYaml } from "yaml";
 
 const WORKFLOW_FILE = ".github/workflows/jev-gate-required.yml";
-const V1_3_0 = "ed390f481d8c724a40e4469936c3ba9fb097974a";
+const V1_4_0 = "a2a6ce8d261d4ffc7999bd24db498976d7da0849";
 const CHECKOUT_SHA = "3d3c42e5aac5ba805825da76410c181273ba90b1";
 
 function expression(body: string): string {
@@ -84,7 +84,7 @@ describe("the ruleset-required gate workflow", () => {
     const steps = (await gateJob()).steps;
     expect(steps.map((step) => step.uses)).toEqual([
       `actions/checkout@${CHECKOUT_SHA}`,
-      `getvoicify/jev-reviewer@${V1_3_0}`,
+      `getvoicify/jev-reviewer@${V1_4_0}`,
     ]);
     for (const step of steps) expect(step.run).toBeUndefined();
     expect(steps[0]?.with).toEqual({
