@@ -101,6 +101,8 @@ type Outcome = {
 };
 
 const UNAVAILABLE_CODES: readonly JevErrorCode[] = ["api_error", "connection", "timeout"];
+const TOKEN_OVERFLOW_STATUS = 400;
+const TOKEN_OVERFLOW_TYPE = "max_tokens_exceeded";
 const SALVAGEABLE_SAVE_STATUS = 409;
 const ANNOTATIONS_REJECTED_STATUS = 422;
 const PUSH_ACTIONS: readonly string[] = ["synchronize", "reopened"];
@@ -263,34 +265,52 @@ async function decide(deps: GateDeps, settings: Settings): Promise<Outcome> {
   }
 
   let parts: PartitionEvaluation[];
+  let overflowed: Partition[];
   try {
-    parts = await scoreParts(deps.jev, scorable, settings.model);
+    ({ parts, overflowed } = await scoreParts(deps.jev, scorable, settings.model));
   } catch (error) {
     logSaved(io, false);
     return error instanceof JevError && UNAVAILABLE_CODES.includes(error.code)
-      ? settled("neutral", `evaluator unavailable: ${error.code}`, shared)
+      ? settled("neutral", unavailableReason(error), shared)
       : settled("failure", "evaluator returned invalid output", shared);
+  }
+  const scored = {
+    ...shared,
+    partitions: partitions.map((part) =>
+      overflowed.includes(part) ? { ...part, oversized: true } : part,
+    ),
+  };
+  if (overflowed.length > 0) io.info(`partitions over Jev's token limit: ${overflowed.length}`);
+  if (parts.length === 0) {
+    logSaved(io, false);
+    return settled("neutral", OVERSIZED_REASON, scored);
   }
 
   const evaluation = aggregateEvaluations(parts, config.gated, config.minConfidence);
-  const record: EvaluationRecord = {
-    version: 2,
-    head: diff.head,
-    mergeBase: diff.mergeBase,
-    patchId: diff.patchId,
-    evaluator,
-    evaluation,
-  };
-  return {
-    ...shared,
-    record,
-    verdict: decideVerdict(parts, config, flags),
+  const outcome: Outcome = {
+    ...scored,
+    verdict: decideVerdict(parts, config, gateFlags(diff, scored.partitions)),
     evaluation,
     comparison:
       plan.previousEvaluation === null
         ? undefined
         : compareEvaluations(evaluation, plan.previousEvaluation).comparison,
     reused: false,
+  };
+  if (overflowed.length > 0) {
+    logSaved(io, false);
+    return outcome;
+  }
+  return {
+    ...outcome,
+    record: {
+      version: 2,
+      head: diff.head,
+      mergeBase: diff.mergeBase,
+      patchId: diff.patchId,
+      evaluator,
+      evaluation,
+    },
   };
 }
 
@@ -302,14 +322,33 @@ async function scoreParts(
   jev: JevPort,
   scorable: Partition[],
   model: string,
-): Promise<PartitionEvaluation[]> {
+): Promise<{ parts: PartitionEvaluation[]; overflowed: Partition[] }> {
   const parts: PartitionEvaluation[] = [];
+  const overflowed: Partition[] = [];
   for (const part of scorable) {
     const diff = part.files.map((file) => file.patch).join("");
-    const evaluation = await evaluateMetrics(jev, { task: FIXED_TASK, diff }, { model });
-    parts.push({ evaluation, changedLines: changedLines(part.files) });
+    try {
+      const evaluation = await evaluateMetrics(jev, { task: FIXED_TASK, diff }, { model });
+      parts.push({ evaluation, changedLines: changedLines(part.files) });
+    } catch (error) {
+      if (!isTokenOverflow(error)) throw error;
+      overflowed.push(part);
+    }
   }
-  return parts;
+  return { parts, overflowed };
+}
+
+function isTokenOverflow(error: unknown): boolean {
+  return (
+    error instanceof JevError &&
+    error.status === TOKEN_OVERFLOW_STATUS &&
+    error.errorType === TOKEN_OVERFLOW_TYPE
+  );
+}
+
+function unavailableReason(error: JevError): string {
+  const detail = [error.code, error.status, error.errorType].filter((part) => part !== undefined);
+  return `evaluator unavailable: ${detail.join(" ")}`;
 }
 
 async function loadPrevious(deps: GateDeps, settings: Settings) {
