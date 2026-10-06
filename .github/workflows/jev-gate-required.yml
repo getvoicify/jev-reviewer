@@ -26,7 +26,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
           persist-credentials: false
-      - uses: getvoicify/jev-reviewer@a2a6ce8d261d4ffc7999bd24db498976d7da0849
+      - uses: getvoicify/jev-reviewer@c373bfccd68b162bdd5bc4bc809f5cbd25ebecf3
         with:
           mode: gate
           typesafe-api-key: ${{ secrets.TYPESAFE_API_KEY }}
