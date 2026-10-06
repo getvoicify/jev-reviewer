@@ -788,6 +788,87 @@ describe("runGate: score", () => {
     expect(records.uploads).toEqual([]);
   });
 
+  const overflow = () =>
+    new JevError("api_error", "400 max_tokens_exceeded", {
+      status: 400,
+      errorType: "max_tokens_exceeded",
+    });
+
+  test("treats a token overflow as an oversized partition, not an unavailable evaluator", async () => {
+    const { check, io, records } = await run({
+      config: '{"version":1,"exclude":[]}',
+      files: [{ path: "apps/orchestrator/uv.lock" }],
+      replies: [overflow()],
+    });
+    expect(check.conclusion).toBe("neutral");
+    expect(io.failures).toEqual([OVERSIZED_REASON]);
+    expect(check.title).not.toContain("evaluator unavailable");
+    expect(check.summary).toContain("Oversized files: 1");
+    expect(records.uploads).toEqual([]);
+  });
+
+  test("scores the other partitions when one overflows, and saves no record that would forget it", async () => {
+    const { check, io, jev, records } = await run({
+      config: SMALL_BUDGET,
+      files: [
+        { path: "a/one.ts", lines: 8 },
+        { path: "b/two.ts", lines: 8 },
+      ],
+      replies: [overflow(), answers()],
+    });
+    expect(jev.requests).toHaveLength(2);
+    expect(check.conclusion).toBe("neutral");
+    expect(io.failures).toEqual([OVERSIZED_REASON]);
+    expect(check.summary).toContain("Partitions scored: 1");
+    expect(check.summary).toContain("Oversized files: 1");
+    expect(records.uploads).toEqual([]);
+    expect(io.infos).toContain("record saved: no");
+  });
+
+  test("fails a scored partition even when another overflows", async () => {
+    const { check } = await run({
+      config: SMALL_BUDGET,
+      files: [
+        { path: "a/one.ts", lines: 8 },
+        { path: "b/two.ts", lines: 8 },
+      ],
+      replies: [overflow(), failing()],
+    });
+    expect(check.conclusion).toBe("failure");
+  });
+
+  const unavailable: [string, JevError, string][] = [
+    [
+      "a server error",
+      new JevError("api_error", "503 upstream sk-live-SECRET body", { status: 503 }),
+      "evaluator unavailable: api_error 503",
+    ],
+    [
+      "a 400 of another error type",
+      new JevError("api_error", "400 bad", { status: 400, errorType: "invalid_request" }),
+      "evaluator unavailable: api_error 400 invalid_request",
+    ],
+    [
+      "a 400 that only mentions max_tokens_exceeded in its message",
+      new JevError("api_error", "400 max_tokens_exceeded", { status: 400 }),
+      "evaluator unavailable: api_error 400",
+    ],
+    [
+      "an overflow error type on a status other than 400",
+      new JevError("api_error", "413", { status: 413, errorType: "max_tokens_exceeded" }),
+      "evaluator unavailable: api_error 413 max_tokens_exceeded",
+    ],
+  ];
+
+  for (const [kind, error, reason] of unavailable) {
+    test(`reports ${kind} with its status and error type, never its body`, async () => {
+      const { check, io } = await run({ replies: [error] });
+      expect(check.conclusion).toBe("neutral");
+      expect(io.failures).toEqual([reason]);
+      expect(check.summary).not.toContain("SECRET");
+    });
+  }
+
   for (const code of ["api_error", "connection"] as const) {
     test(`goes neutral when Jev fails with ${code}`, async () => {
       const { check } = await run({ replies: [new JevError(code, "down")] });

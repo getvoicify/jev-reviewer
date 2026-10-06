@@ -94,6 +94,47 @@ describe("JevClient", () => {
     }
   });
 
+  async function caught(throwing: () => never): Promise<JevError> {
+    try {
+      await new JevClient({ port: failingPort(throwing) }).systemOne(REQUEST);
+    } catch (err) {
+      if (err instanceof JevError) return err;
+    }
+    throw new Error("expected a JevError");
+  }
+
+  test("reads the structured error type from an API error body", async () => {
+    const err = await caught(() => {
+      throw APIError.fromResponse(
+        400,
+        { detail: { error_type: "max_tokens_exceeded" } },
+        new Headers(),
+      );
+    });
+    expect(err.status).toBe(400);
+    expect(err.errorType).toBe("max_tokens_exceeded");
+  });
+
+  const untyped: [string, unknown][] = [
+    ["a text body that mentions the type", '{"detail":{"error_type":"max_tokens_exceeded"}}'],
+    ["a body with no detail", { error_type: "max_tokens_exceeded" }],
+    ["a detail that is a string", { detail: "max_tokens_exceeded" }],
+    ["an error type that is not a string", { detail: { error_type: ["max_tokens_exceeded"] } }],
+    ["an error type with spaces or markup", { detail: { error_type: "max tokens <b>" } }],
+    ["an overlong error type", { detail: { error_type: "a".repeat(65) } }],
+    ["no body", undefined],
+  ];
+
+  for (const [kind, body] of untyped) {
+    test(`leaves the error type unset for ${kind}`, async () => {
+      const err = await caught(() => {
+        throw APIError.fromResponse(400, body, new Headers());
+      });
+      expect(err.status).toBe(400);
+      expect(err.errorType).toBeUndefined();
+    });
+  }
+
   test("maps APITimeoutError to JevError timeout", async () => {
     const client = new JevClient({
       port: failingPort(() => {

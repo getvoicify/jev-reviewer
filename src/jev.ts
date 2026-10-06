@@ -26,14 +26,19 @@ export type JevErrorCode =
  */
 export class JevError extends Error {
   readonly code: JevErrorCode;
-  /** HTTP status when `code` is `api_error`; undefined otherwise. */
   readonly status?: number;
+  readonly errorType?: string;
 
-  constructor(code: JevErrorCode, message: string, options?: { status?: number; cause?: unknown }) {
+  constructor(
+    code: JevErrorCode,
+    message: string,
+    options?: { status?: number; errorType?: string; cause?: unknown },
+  ) {
     super(message, options?.cause === undefined ? undefined : { cause: options.cause });
     this.name = "JevError";
     this.code = code;
     this.status = options?.status;
+    this.errorType = options?.errorType;
   }
 }
 
@@ -89,7 +94,11 @@ function toJevError(err: unknown): JevError {
   if (err instanceof JevError) return err;
   const message = err instanceof Error ? err.message : String(err);
   if (err instanceof APIError) {
-    return new JevError("api_error", message, { status: err.status, cause: err });
+    return new JevError("api_error", message, {
+      status: err.status,
+      errorType: errorTypeOf(err.body),
+      cause: err,
+    });
   }
   // APITimeoutError extends APIConnectionError; check the subclass first.
   if (err instanceof APITimeoutError) {
@@ -102,4 +111,14 @@ function toJevError(err: unknown): JevError {
     return new JevError("aborted", message, { cause: err });
   }
   return new JevError("unknown", message, { cause: err });
+}
+
+const ERROR_TYPE = /^[a-z][a-z0-9_]{0,63}$/;
+
+function errorTypeOf(body: unknown): string | undefined {
+  if (typeof body !== "object" || body === null) return undefined;
+  const detail = (body as { detail?: unknown }).detail;
+  if (typeof detail !== "object" || detail === null) return undefined;
+  const type = (detail as { error_type?: unknown }).error_type;
+  return typeof type === "string" && ERROR_TYPE.test(type) ? type : undefined;
 }

@@ -168,6 +168,14 @@ to Jev; `exclude` in the gate config replaces that list. A changed lockfile, bun
 still unreviewed, so it makes the verdict neutral and needs the owner's override; only images, fonts,
 media, changelogs, release and census bookkeeping and Drizzle snapshots are excluded without that.
 
+### When Jev cannot score
+
+A partition TypeSafe rejects as over its token limit (HTTP 400 with `error_type`
+`max_tokens_exceeded`) counts as oversized, so the verdict is neutral. That run stores no record:
+a reused record recomputes the oversized flag from the byte estimate and would forget the overflow.
+Any other API, connection or timeout failure is neutral with `evaluator unavailable: <code>`, followed
+by the HTTP status and error type when there are any.
+
 ### Size cap
 
 `maxChangedLines` in the gate config (a positive integer; absent means no cap) caps the added plus
