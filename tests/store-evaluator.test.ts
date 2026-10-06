@@ -127,6 +127,13 @@ describe("evaluatorFingerprint over the evaluator semantics", () => {
       evaluatorFingerprint("jev-latest", defaults, questions(), 2),
     );
   });
+
+  test("never reuses a record decided while the size cap still counted deleted lines", () => {
+    const capped = gate({ maxChangedLines: 400 });
+    expect(evaluatorFingerprint("jev-latest", capped)).not.toBe(
+      evaluatorFingerprint("jev-latest", capped, questions(), 3),
+    );
+  });
 });
 
 describe("evaluatorFingerprint over the gate config", () => {
@@ -151,7 +158,7 @@ describe("evaluatorFingerprint over the gate config", () => {
 
   test("pins the uncapped default config's hash, which leaves an unset maxChangedLines out", () => {
     expect(evaluatorFingerprint("jev-latest", defaults)).toBe(
-      "95ed434ec1915955c48d21fd902c59384fdb7109a2d810ae752a051aee5b4541",
+      "8ad6ea138df0969e232708ed673d54f353172af8df1394383208a9e9355ad7f2",
     );
   });
 

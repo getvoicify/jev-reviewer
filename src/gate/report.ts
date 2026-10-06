@@ -29,7 +29,7 @@ export type GateReportInput = {
   model: string;
   head: string;
   overriddenBy?: string;
-  size?: { changedLines: number; limit: number };
+  size?: { addedLines: number; limit: number };
 };
 
 export type GateCheckOutput = { title: string; summary: string; text: string };
@@ -156,9 +156,7 @@ function renderSummary(input: GateReportInput): string {
     `Partitions scored: ${input.partitions} · Excluded files: ${input.excludedCount} · Oversized files: ${input.oversizedFiles.length}`,
     ...(input.size === undefined
       ? []
-      : [
-          `Changed lines in reviewed files: ${input.size.changedLines} · Limit: ${input.size.limit}`,
-        ]),
+      : [`Added lines in reviewed files: ${input.size.addedLines} · Limit: ${input.size.limit}`]),
     `Model: ${inline(input.model)} · Head: \`${inline(input.head)}\``,
   ].join("\n");
 }

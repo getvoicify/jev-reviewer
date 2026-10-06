@@ -92,7 +92,7 @@ Run each step as yourself (`gh auth status` shows `verygreenboi` with `admin:org
    ```
 
    Expected, in order:
-   - `required-gate` fails, and its log has `PR too large to review: 450 changed lines in reviewed files, over the limit of 400`. If `gh pr checks` prints `no checks reported`, wait 30 seconds and retry.
+   - `required-gate` fails, and its log has `PR too large to review: 450 added lines in reviewed files, over the limit of 400`. If `gh pr checks` prints `no checks reported`, wait 30 seconds and retry.
    - `BLOCKED`.
    - The merge succeeds. The UI equivalent is the checkbox "Merge without waiting for requirements to be met (bypass rules)".
    - `MERGED verygreenboi`. On the Team plan the rule-suites API and rule insights are Enterprise-only (403), so the PR's merged-by field is the record of a bypass.

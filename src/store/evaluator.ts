@@ -3,7 +3,7 @@ import { DEFAULT_EXCLUDE_GLOBS } from "../diff/exclude";
 import type { GateConfig } from "../gate/config";
 import { buildMetricQuestions, type MetricQuestions } from "../metrics";
 
-export const EVALUATOR_SEMANTICS = 3;
+export const EVALUATOR_SEMANTICS = 4;
 
 function canonical(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(canonical);
@@ -26,6 +26,7 @@ function verdictShapingConfig(gate: GateConfig) {
     limitTokens: gate.limitTokens,
     reservedTokens: gate.reservedTokens,
     maxChangedLines: gate.maxChangedLines,
+    sizeCounts: "added",
   };
 }
 

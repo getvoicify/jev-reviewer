@@ -31,11 +31,14 @@ const TRUSTED = {
 const SECRET_LINE = "DIFF-CONTENT-NEVER-LOGGED";
 const SMALL_BUDGET = '{"version":1,"limitTokens":200,"reservedTokens":10}';
 
-type FileSpec = { path: string; lines?: number; text?: string };
+type FileSpec = { path: string; lines?: number; deleted?: number; text?: string };
 
-function patchOf({ path, lines = 1, text = SECRET_LINE }: FileSpec): string {
-  const body = Array.from({ length: lines }, (_, i) => `+${text} ${i}`).join("\n");
-  return `diff --git a/${path} b/${path}\n--- a/${path}\n+++ b/${path}\n@@ -0,0 +1,${lines} @@\n${body}\n`;
+function patchOf({ path, lines = 1, deleted = 0, text = SECRET_LINE }: FileSpec): string {
+  const body = [
+    ...Array.from({ length: deleted }, (_, i) => `-${text} old ${i}`),
+    ...Array.from({ length: lines }, (_, i) => `+${text} ${i}`),
+  ].join("\n");
+  return `diff --git a/${path} b/${path}\n--- a/${path}\n+++ b/${path}\n@@ -${deleted === 0 ? 0 : 1},${deleted} +1,${lines} @@\n${body}\n`;
 }
 
 function fakeGit(files: FileSpec[], checkedOut = HEAD): GitPort {
@@ -522,11 +525,11 @@ describe("runGate: changed-line cap", () => {
     expect(jev.requests).toHaveLength(0);
     expect(records.reads).toEqual([]);
     expect(records.uploads).toEqual([]);
-    expect(io.infos.slice(-2)).toEqual(["changed lines: 401 (limit 400)", "record saved: no"]);
+    expect(io.infos.slice(-2)).toEqual(["added lines: 401 (limit 400)", "record saved: no"]);
     expect(check.title).toContain(reason.slice(0, 60));
-    expect(check.summary).toContain("Changed lines in reviewed files: 401 · Limit: 400");
+    expect(check.summary).toContain("Added lines in reviewed files: 401 · Limit: 400");
     expect(github.comments.at(-1)?.body).toContain(
-      "Changed lines in reviewed files: 401 · Limit: 400",
+      "Added lines in reviewed files: 401 · Limit: 400",
     );
   });
 
@@ -540,7 +543,7 @@ describe("runGate: changed-line cap", () => {
     });
     expect(jev.requests).toHaveLength(1);
     expect(check.conclusion).toBe("success");
-    expect(check.summary).toContain("Changed lines in reviewed files: 400 · Limit: 400");
+    expect(check.summary).toContain("Added lines in reviewed files: 400 · Limit: 400");
   });
 
   test("counts only kept files, so a lockfile-heavy change under the cap still scores", async () => {
@@ -553,8 +556,40 @@ describe("runGate: changed-line cap", () => {
     });
     expect(jev.requests).toHaveLength(1);
     expect(jev.requests[0]?.state.diff).not.toContain("bun.lock");
-    expect(check.summary).toContain("Changed lines in reviewed files: 50 · Limit: 400");
+    expect(check.summary).toContain("Added lines in reviewed files: 50 · Limit: 400");
     expect(check.summary).not.toContain("PR too large");
+  });
+
+  test("counts only added lines, so a 2,000-line removal with 10 added passes the cap", async () => {
+    const { check, jev, io } = await run({
+      config: CAP_400,
+      files: [{ path: "src/app.ts", lines: 10, deleted: 2000 }],
+    });
+    expect(jev.requests).toHaveLength(1);
+    expect(check.conclusion).toBe("success");
+    expect(io.infos).toContain("added lines: 10 (limit 400)");
+    expect(check.summary).toContain("Added lines in reviewed files: 10 · Limit: 400");
+  });
+
+  test("refuses 450 added lines however few are deleted", async () => {
+    const { check, io, jev } = await run({
+      config: CAP_400,
+      files: [{ path: "src/app.ts", lines: 450, deleted: 3 }],
+    });
+    expect(jev.requests).toHaveLength(0);
+    expect(check.conclusion).toBe("neutral");
+    expect(io.failures).toEqual([
+      "PR too large to review: 450 added lines in reviewed files, over the limit of 400 — split it at a seam",
+    ]);
+  });
+
+  test("passes exactly 400 added lines beside deletions", async () => {
+    const { check, jev } = await run({
+      config: CAP_400,
+      files: [{ path: "src/app.ts", lines: 400, deleted: 400 }],
+    });
+    expect(jev.requests).toHaveLength(1);
+    expect(check.conclusion).toBe("success");
   });
 
   test("caps nothing when the config sets no maxChangedLines", async () => {
@@ -564,7 +599,7 @@ describe("runGate: changed-line cap", () => {
     });
     expect(jev.requests).toHaveLength(1);
     expect(check.conclusion).toBe("success");
-    expect(check.summary).not.toContain("Changed lines");
+    expect(check.summary).not.toContain("Added lines");
   });
 
   test("lets the owner's override label accept an over-cap change on the labeled run", async () => {

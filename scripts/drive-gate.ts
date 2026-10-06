@@ -7,7 +7,7 @@ import { partition } from "../src/diff/partition";
 import { cumulativeDiff } from "../src/diff/source";
 import { type GateConfig, GateConfigError, parseGateConfig } from "../src/gate/config";
 import { gateFlags } from "../src/gate/flags";
-import { changedLines, type GateGitHubPort, runGate } from "../src/gate/run";
+import { addedLines, type GateGitHubPort, runGate } from "../src/gate/run";
 import type { GateCheckRunParams } from "../src/github";
 import { JevClient, type JevPort } from "../src/jev";
 import { metricKeys } from "../src/metrics";
@@ -247,7 +247,7 @@ export async function drive(args: DriveArgs, print: (line: string) => void): Pro
       : `flags: oversized=${flags.oversized} codeChanged=${flags.codeChanged} unreviewedExcluded=${flags.unreviewedExcluded}`,
   );
   print(
-    `changed lines in kept files: ${changedLines(diff.files)} (limit ${config?.maxChangedLines ?? "none"}) · kept files: ${diff.files.length} · excluded files: ${diff.excluded.length}`,
+    `added lines in kept files: ${addedLines(diff.files)} (limit ${config?.maxChangedLines ?? "none"}) · kept files: ${diff.files.length} · excluded files: ${diff.excluded.length}`,
   );
   print(`jev calls: ${jev.calls()} (${args.realJev ? "real" : "stub"})`);
   print(`verdict: ${check?.conclusion ?? "no check posted"}`);

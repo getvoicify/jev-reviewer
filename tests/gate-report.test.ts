@@ -253,16 +253,16 @@ describe("renderCheckOutput summary", () => {
     expect(summary).toContain("Oversized files: 3");
   });
 
-  test("shows the changed lines in reviewed files against the limit in the check and the comment", () => {
-    const capped = input({ size: { changedLines: 539, limit: 400 } });
-    const line = "Changed lines in reviewed files: 539 · Limit: 400";
+  test("shows the added lines in reviewed files against the limit in the check and the comment", () => {
+    const capped = input({ size: { addedLines: 539, limit: 400 } });
+    const line = "Added lines in reviewed files: 539 · Limit: 400";
     expect(renderCheckOutput(capped).summary).toContain(line);
     expect(renderComment(capped)).toContain(line);
   });
 
-  test("says nothing about changed lines when no limit is configured", () => {
-    expect(renderCheckOutput(input()).summary).not.toContain("Changed lines");
-    expect(renderComment(input())).not.toContain("Changed lines");
+  test("says nothing about added lines when no limit is configured", () => {
+    expect(renderCheckOutput(input()).summary).not.toContain("Added lines");
+    expect(renderComment(input())).not.toContain("Added lines");
   });
 
   test("names the model and the full evaluated head in the check and the comment", () => {
