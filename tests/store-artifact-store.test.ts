@@ -194,8 +194,75 @@ describe("ArtifactRecordStore.workflowRun", () => {
     ).workflowRun("o", "r", 42);
 
     expect(runRequests).toEqual([{ owner: "o", repo: "r", run_id: 42 }]);
-    expect(origin).toEqual({ path: ".github/workflows/jev-gate.yml", event: "pull_request" });
+    expect(origin).toEqual({
+      path: ".github/workflows/jev-gate.yml",
+      event: "pull_request",
+      required: false,
+    });
   });
+
+  const workflowUrls: Array<[string, unknown, boolean]> = [
+    [
+      "a ruleset-required workflow URL",
+      "https://api.github.com/repos/getvoicify/tutela/actions/required_workflows/375975458",
+      true,
+    ],
+    [
+      "a repo-local workflow URL",
+      "https://api.github.com/repos/getvoicify/tutela/actions/workflows/196466210",
+      false,
+    ],
+    [
+      "required_workflows only in the query string",
+      "https://api.github.com/repos/o/r/actions/workflows/1?x=/actions/required_workflows/2",
+      false,
+    ],
+    [
+      "required_workflows only in the fragment",
+      "https://api.github.com/repos/o/r/actions/workflows/1#/actions/required_workflows/2",
+      false,
+    ],
+    [
+      "required_workflows nested under another path",
+      "https://api.github.com/repos/o/r/actions/workflows/1/actions/required_workflows/2",
+      false,
+    ],
+    [
+      "a required_workflows path below another prefix",
+      "https://api.github.com/x/repos/o/r/actions/required_workflows/2",
+      false,
+    ],
+    [
+      "a required_workflows path with a trailing segment",
+      "https://api.github.com/repos/o/r/actions/required_workflows/2/runs",
+      false,
+    ],
+    ["a URL that does not parse", "not a url /actions/required_workflows/2", false],
+    ["no workflow URL", undefined, false],
+    ["a non-string workflow URL", 375975458, false],
+  ];
+
+  for (const [label, workflowUrl, required] of workflowUrls) {
+    test(`reports required ${required} for ${label}`, async () => {
+      const { octokit } = fakeOctokit([], async () => ({
+        data: {
+          id: 42,
+          path: ".github/workflows/jev-gate-required.yml",
+          event: "pull_request_target",
+          workflow_url: workflowUrl,
+        },
+      }));
+
+      const origin = await new ArtifactRecordStore(
+        octokit,
+        fakeTransfer().transfer,
+        "tok",
+        tempRoot(),
+      ).workflowRun("o", "r", 42);
+
+      expect(origin?.required).toBe(required);
+    });
+  }
 
   test("returns null when the run no longer exists", async () => {
     const { octokit } = fakeOctokit([], async () => {

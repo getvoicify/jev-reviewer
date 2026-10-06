@@ -15,6 +15,7 @@ export interface ListedArtifact {
 export interface WorkflowRunOrigin {
   path: string;
   event: string;
+  required: boolean;
 }
 
 export interface ArtifactLocation {
@@ -77,7 +78,13 @@ export async function loadPreviousRecord(
   };
   for (const candidate of candidates) {
     const origin = await originOf(candidate.workflowRunId);
-    if (origin?.path !== trustedWorkflow.path || origin.event !== trustedWorkflow.event) continue;
+    if (
+      origin?.path !== trustedWorkflow.path ||
+      origin.event !== trustedWorkflow.event ||
+      origin.required !== trustedWorkflow.required
+    ) {
+      continue;
+    }
     const text = await reader.downloadRecordText(owner, repo, candidate);
     const record = decodeRecord(text);
     if (record !== null && record.head === sha) return record;

@@ -47,7 +47,8 @@ Run each step as yourself (`gh auth status` shows `verygreenboi` with `admin:org
 
    Expected: `refs/heads/gate-canary`
 
-3. Open a one-line PR into `gate-canary` and read what the run reports. This decides `trusted-workflow-path`, which until then is a placeholder that matches no run, so no stored record is trusted.
+3. Open a one-line PR into `gate-canary` and read what the run reports.
+   Measured on tutela#476 (run 37403742674, 2026-10-06): the path is repo-local, `.github/workflows/jev-gate-required.yml`, so a tutela branch can commit a workflow that reports the same path. The run's `workflow_url` is what a branch cannot forge: a ruleset-required run's is under `/actions/required_workflows/`, a repo-local run's under `/actions/workflows/`. The workflow therefore sets `trusted-workflow-required: "true"`, and the gate trusts a record only from a run with the trusted path, the trusted event and a required-workflow URL.
 
    ```sh
    git fetch origin && git switch -c canary/tiny origin/gate-canary
@@ -55,28 +56,27 @@ Run each step as yourself (`gh auth status` shows `verygreenboi` with `admin:org
    gh pr create -R getvoicify/tutela --base gate-canary --head canary/tiny --title "chore: gate canary" --body "Gate canary. Do not merge."
    gh pr checks canary/tiny -R getvoicify/tutela --watch
    RUN=$(gh api 'repos/getvoicify/tutela/actions/runs?event=pull_request_target&per_page=20' --jq '[.workflow_runs[] | select(.display_title=="chore: gate canary")][0].id')
-   gh api repos/getvoicify/tutela/actions/runs/$RUN --jq '[.name, .event, .path, .conclusion] | @tsv'
+   gh api repos/getvoicify/tutela/actions/runs/$RUN --jq '[.name, .event, .path, (.workflow_url | test("/actions/required_workflows/[0-9]+$")), .conclusion] | @tsv'
    gh run view $RUN -R getvoicify/tutela --log | grep -E "changed lines|No TypeSafe API key"
    ```
 
-   Expected: the checks include `required-gate` and `jev-gate-required`; then `Jev gate (required)	pull_request_target	<PATH>	<success or failure>`; then one line ending `changed lines: 1 (limit 400)`.
+   Expected: the checks include `required-gate` and `jev-gate-required`; then `Jev gate (required)	pull_request_target	.github/workflows/jev-gate-required.yml	true	<success or failure>`; then one line ending `changed lines: 1 (limit 400)`.
    - If `gh pr checks` prints `no checks reported on the 'canary/tiny' branch`: the run has not registered yet. Wait 30 seconds and run it again.
    - If there is still no `required-gate` check after 3 minutes: stop and send `gh api orgs/getvoicify/rulesets --jq '.[] | select(.name=="jev-gate-required")'` to Claude. Disabling the workflow in jev-reviewer is a documented, supported setup, so don't re-enable it.
    - If the event is anything but `pull_request_target`, or the log says `No TypeSafe API key`: stop and go to step 8.
-   - If `<PATH>` is `.github/workflows/jev-gate-required.yml`: stop. A tutela branch can reproduce that path, so records need signing first (jev-reviewer#8, prerequisite 1).
-   - If `<PATH>` ends in `@` plus the 40-character `$SHA` from step 1: stop and send it to Claude. The file cannot name the SHA of its own commit.
-   - If `<PATH>` starts with `getvoicify/jev-reviewer/` and either has no `@` or ends in `@refs/...`: send the exact string to Claude, to replace `unverified-until-the-canary-run` in `.github/workflows/jev-gate-required.yml`. If it carries `@refs/...`, the string must be updated again whenever a re-pin changes that ref. After the change merges, re-pin:
+   - If the fourth column is `false`, or the path differs: stop and send the line to Claude. The gate would trust no stored record.
 
-     ```sh
-     RULESET_ID=$(gh api orgs/getvoicify/rulesets --jq '.[] | select(.name=="jev-gate-required") | .id')
-     SHA=$(gh api repos/getvoicify/jev-reviewer/commits/main --jq .sha)
-     gh api -X PUT orgs/getvoicify/rulesets/$RULESET_ID --input - --jq '.rules[0].parameters.workflows[0].sha' <<EOF
-     {"rules":[{"type":"workflows","parameters":{"do_not_enforce_on_create":true,"workflows":[{"repository_id":1376572686,"path":".github/workflows/jev-gate-required.yml","sha":"$SHA"}]}}]}
-     EOF
-     ```
+   The ruleset runs the workflow at its pinned SHA, and that workflow pins the action. Once the action release that reads `trusted-workflow-required` is out, re-pin the workflow's `getvoicify/jev-reviewer@` to it, merge, then re-pin the ruleset:
 
-     Expected: the new SHA. Then push an empty commit to `canary/tiny` (`git commit --allow-empty -m "chore: re-run" && git push`) and repeat this step's run readout. It should print the same `<PATH>`.
-   - Any other `<PATH>`: stop and send it to Claude.
+   ```sh
+   RULESET_ID=$(gh api orgs/getvoicify/rulesets --jq '.[] | select(.name=="jev-gate-required") | .id')
+   SHA=$(gh api repos/getvoicify/jev-reviewer/commits/main --jq .sha)
+   gh api -X PUT orgs/getvoicify/rulesets/$RULESET_ID --input - --jq '.rules[0].parameters.workflows[0].sha' <<EOF
+   {"rules":[{"type":"workflows","parameters":{"do_not_enforce_on_create":true,"workflows":[{"repository_id":1376572686,"path":".github/workflows/jev-gate-required.yml","sha":"$SHA"}]}}]}
+   EOF
+   ```
+
+   Expected: the new SHA. Then push an empty commit to `canary/tiny` (`git commit --allow-empty -m "chore: re-run" && git push`) and repeat this step's run readout. It should print the same line.
 
 4. Open a PR of more than 400 lines into `gate-canary`, then merge it past the rule as an org admin.
 

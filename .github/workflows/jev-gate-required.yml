@@ -30,5 +30,6 @@ jobs:
         with:
           mode: gate
           typesafe-api-key: ${{ secrets.TYPESAFE_API_KEY }}
-          trusted-workflow-path: unverified-until-the-canary-run
+          trusted-workflow-path: .github/workflows/jev-gate-required.yml
+          trusted-workflow-required: "true"
           check-name: jev-gate-required

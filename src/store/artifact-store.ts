@@ -27,6 +27,16 @@ export interface ArtifactTransfer {
   ): Promise<{ downloadPath?: string }>;
 }
 
+const REQUIRED_WORKFLOW_PATH = /^\/repos\/[^/]+\/[^/]+\/actions\/required_workflows\/\d+$/;
+
+function isRequiredWorkflowUrl(workflowUrl: string): boolean {
+  try {
+    return REQUIRED_WORKFLOW_PATH.test(new URL(workflowUrl).pathname);
+  } catch {
+    return false;
+  }
+}
+
 function isNotFound(error: unknown): boolean {
   return (error as { status?: unknown } | null)?.status === 404;
 }
@@ -71,7 +81,11 @@ export class ArtifactRecordStore implements RecordReader, RecordWriter {
         repo,
         run_id: runId,
       });
-      return { path: data.path, event: data.event };
+      return {
+        path: data.path,
+        event: data.event,
+        required: isRequiredWorkflowUrl(data.workflow_url),
+      };
     } catch (error) {
       if (isNotFound(error)) return null;
       throw error;

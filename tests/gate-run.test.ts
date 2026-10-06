@@ -23,7 +23,11 @@ const BASE = "d".repeat(40);
 const PATCH_ID = "e".repeat(40);
 const OTHER_PATCH_ID = "f".repeat(40);
 const MODEL = "jev-test-model";
-const TRUSTED = { path: ".github/workflows/jev-gate.yml", event: "pull_request_target" };
+const TRUSTED = {
+  path: ".github/workflows/jev-gate.yml",
+  event: "pull_request_target",
+  required: false,
+};
 const SECRET_LINE = "DIFF-CONTENT-NEVER-LOGGED";
 const SMALL_BUDGET = '{"version":1,"limitTokens":200,"reservedTokens":10}';
 

@@ -13,7 +13,11 @@ import evaluationFixture from "./fixtures/metric-evaluation-current.json";
 
 const SHA = "5".repeat(40);
 const ARTIFACT_NAME = `jev-gate-record-${SHA}`;
-const GATE = { path: ".github/workflows/jev-gate.yml", event: "pull_request_target" };
+const GATE = {
+  path: ".github/workflows/jev-gate.yml",
+  event: "pull_request_target",
+  required: false,
+};
 
 function record(mergeBase: string, head = SHA): EvaluationRecord {
   return {
@@ -88,7 +92,7 @@ describe("loadPreviousRecord", () => {
   test("rejects an artifact a pull_request run of the gate's own path uploaded, without downloading it", async () => {
     const { stub, downloads } = reader({
       artifacts: [artifact()],
-      runs: { 10: { path: GATE.path, event: "pull_request" } },
+      runs: { 10: { ...GATE, event: "pull_request" } },
     });
 
     expect(await loadPreviousRecord(stub, QUERY)).toBeNull();
@@ -98,7 +102,7 @@ describe("loadPreviousRecord", () => {
   test("rejects an artifact a pull_request_target run of another workflow uploaded, without downloading it", async () => {
     const { stub, downloads } = reader({
       artifacts: [artifact()],
-      runs: { 10: { path: ".github/workflows/other.yml", event: GATE.event } },
+      runs: { 10: { ...GATE, path: ".github/workflows/other.yml" } },
     });
 
     expect(await loadPreviousRecord(stub, QUERY)).toBeNull();
@@ -221,7 +225,7 @@ describe("loadPreviousRecord", () => {
         artifact({ id: 1, workflowRunId: 10, createdAt: "2026-10-05T09:00:00Z" }),
         artifact({ id: 2, workflowRunId: 20, createdAt: "2026-10-05T09:30:00Z" }),
       ],
-      runs: { 10: GATE, 20: { path: GATE.path, event: "pull_request" } },
+      runs: { 10: GATE, 20: { ...GATE, event: "pull_request" } },
     });
 
     expect(await loadPreviousRecord(stub, QUERY)).toEqual(record("1".repeat(40)));
@@ -285,10 +289,49 @@ describe("loadPreviousRecord", () => {
         artifact({ id: 2, createdAt: "2026-10-05T09:00:00Z" }),
         artifact({ id: 3, createdAt: "2026-10-05T08:00:00Z" }),
       ],
-      runs: { 10: { path: GATE.path, event: "pull_request" } },
+      runs: { 10: { ...GATE, event: "pull_request" } },
     });
 
     expect(await loadPreviousRecord(stub, QUERY)).toBeNull();
     expect(lookups).toEqual([10]);
+  });
+});
+
+describe("loadPreviousRecord for a ruleset-required gate", () => {
+  const REQUIRED_GATE = { ...GATE, required: true };
+  const REQUIRED_QUERY: PreviousRecordQuery = { ...QUERY, trustedWorkflow: REQUIRED_GATE };
+
+  test("rejects an artifact a repo-local run of the gate's path and event uploaded, without downloading it", async () => {
+    const { stub, downloads } = reader({ artifacts: [artifact()], runs: { 10: GATE } });
+
+    expect(await loadPreviousRecord(stub, REQUIRED_QUERY)).toBeNull();
+    expect(downloads).toEqual([]);
+  });
+
+  test("accepts the same artifact when a ruleset-required run uploaded it", async () => {
+    const { stub, downloads } = reader({ artifacts: [artifact()], runs: { 10: REQUIRED_GATE } });
+
+    expect(await loadPreviousRecord(stub, REQUIRED_QUERY)).toEqual(record("1".repeat(40)));
+    expect(downloads).toEqual([1]);
+  });
+
+  test("falls back to an older required-run artifact when a newer repo-local run uploaded one", async () => {
+    const { stub, downloads } = reader({
+      artifacts: [
+        artifact({ id: 1, workflowRunId: 10, createdAt: "2026-10-05T09:00:00Z" }),
+        artifact({ id: 2, workflowRunId: 20, createdAt: "2026-10-05T09:30:00Z" }),
+      ],
+      runs: { 10: REQUIRED_GATE, 20: GATE },
+    });
+
+    expect(await loadPreviousRecord(stub, REQUIRED_QUERY)).toEqual(record("1".repeat(40)));
+    expect(downloads).toEqual([1]);
+  });
+
+  test("a repo-local gate rejects a record a required run uploaded", async () => {
+    const { stub, downloads } = reader({ artifacts: [artifact()], runs: { 10: REQUIRED_GATE } });
+
+    expect(await loadPreviousRecord(stub, QUERY)).toBeNull();
+    expect(downloads).toEqual([]);
   });
 });

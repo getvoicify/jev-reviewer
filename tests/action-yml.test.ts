@@ -77,6 +77,7 @@ describe("action.yml", () => {
     expect({
       "gate-config-path": inputs["gate-config-path"]?.default,
       "trusted-workflow-event": inputs["trusted-workflow-event"]?.default,
+      "trusted-workflow-required": inputs["trusted-workflow-required"]?.default,
       "override-label": inputs["override-label"]?.default,
       "override-actors": inputs["override-actors"]?.default,
       "check-name": inputs["check-name"]?.default,
@@ -84,6 +85,7 @@ describe("action.yml", () => {
     }).toEqual({
       "gate-config-path": ".github/jev-gate.json",
       "trusted-workflow-event": "pull_request_target",
+      "trusted-workflow-required": "false",
       "override-label": "jev-gate:override",
       "override-actors": "",
       "check-name": "jev-gate",

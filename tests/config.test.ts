@@ -104,6 +104,7 @@ function rawGate(overrides: Record<string, unknown> = {}) {
     gateConfigPath: ".github/jev-gate.json",
     trustedWorkflowPath: ".github/workflows/jev-gate.yml",
     trustedWorkflowEvent: "pull_request_target",
+    trustedWorkflowRequired: "false",
     overrideLabel: "jev-gate:override",
     overrideActors: "",
     checkName: "jev-gate",
@@ -136,6 +137,7 @@ describe("parseGateInputs", () => {
         gateConfigPath: ".github/gate.json",
         trustedWorkflowPath: "voicify/.github/.github/workflows/gate.yml",
         trustedWorkflowEvent: "pull_request_target",
+        trustedWorkflowRequired: "true",
         overrideLabel: "accept",
         overrideActors: "verygreenboi",
         checkName: "quality",
@@ -152,6 +154,7 @@ describe("parseGateInputs", () => {
       trustedWorkflow: {
         path: "voicify/.github/.github/workflows/gate.yml",
         event: "pull_request_target",
+        required: true,
       },
       overrideLabel: "accept",
       overrideActors: ["verygreenboi"],
@@ -166,6 +169,7 @@ describe("parseGateInputs", () => {
         model: "",
         gateConfigPath: "",
         trustedWorkflowEvent: "",
+        trustedWorkflowRequired: "",
         overrideLabel: "",
         checkName: "",
         commentAuthor: "",
@@ -176,7 +180,7 @@ describe("parseGateInputs", () => {
     expect(config).toMatchObject({
       model: "jev-latest",
       gateConfigPath: ".github/jev-gate.json",
-      trustedWorkflow: { event: "pull_request_target" },
+      trustedWorkflow: { event: "pull_request_target", required: false },
       overrideLabel: "jev-gate:override",
       checkName: "jev-gate",
       commentAuthor: "github-actions[bot]",
@@ -200,6 +204,25 @@ describe("parseGateInputs", () => {
     test(`refuses ${event} as the trusted event`, () => {
       expect(() => parseGateInputs(rawGate({ trustedWorkflowEvent: event }), EMPTY_ENV)).toThrow(
         `trusted-workflow-event must be pull_request_target, got "${event}"`,
+      );
+    });
+  }
+
+  test("reads trusted-workflow-required as a strict boolean", () => {
+    expect(
+      parseGateInputs(rawGate({ trustedWorkflowRequired: " true " }), EMPTY_ENV).trustedWorkflow
+        .required,
+    ).toBe(true);
+    expect(
+      parseGateInputs(rawGate({ trustedWorkflowRequired: "false" }), EMPTY_ENV).trustedWorkflow
+        .required,
+    ).toBe(false);
+  });
+
+  for (const value of ["yes", "1", "TRUE"]) {
+    test(`refuses ${value} as trusted-workflow-required`, () => {
+      expect(() => parseGateInputs(rawGate({ trustedWorkflowRequired: value }), EMPTY_ENV)).toThrow(
+        `trusted-workflow-required must be "true" or "false", got "${value}"`,
       );
     });
   }
