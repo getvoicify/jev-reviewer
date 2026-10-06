@@ -79,6 +79,7 @@ Run each step as yourself (`gh auth status` shows `verygreenboi` with `admin:org
    Expected: the new SHA. Then push an empty commit to `canary/tiny` (`git commit --allow-empty -m "chore: re-run" && git push`) and repeat this step's run readout. It should print the same line.
 
 4. Open a PR of more than 400 lines into `gate-canary`, then merge it past the rule as an org admin.
+   Done on 2026-10-06 as tutela#477: `required-gate` failed with `PR too large to review: 450 changed lines…`, the merge state was `BLOCKED`, and the bypass merge succeeded.
 
    ```sh
    git switch -c canary/big origin/gate-canary
@@ -87,14 +88,14 @@ Run each step as yourself (`gh auth status` shows `verygreenboi` with `admin:org
    gh pr checks canary/big -R getvoicify/tutela --watch
    gh pr view canary/big -R getvoicify/tutela --json mergeStateStatus --jq .mergeStateStatus
    gh pr merge canary/big -R getvoicify/tutela --squash --admin
-   gh api 'orgs/getvoicify/rulesets/rule-suites?repository_name=tutela&ref=refs/heads/gate-canary&rule_suite_result=bypass&time_period=hour' --jq '.[] | [.actor_name, .ref, .result] | @tsv'
+   gh pr view canary/big -R getvoicify/tutela --json state,mergedBy --jq '.state+" "+.mergedBy.login'
    ```
 
    Expected, in order:
    - `required-gate` fails, and its log has `PR too large to review: 450 changed lines in reviewed files, over the limit of 400`. If `gh pr checks` prints `no checks reported`, wait 30 seconds and retry.
    - `BLOCKED`.
    - The merge succeeds. The UI equivalent is the checkbox "Merge without waiting for requirements to be met (bypass rules)".
-   - `verygreenboi	refs/heads/gate-canary	bypass`. The same entry is at https://github.com/organizations/getvoicify/settings/rules/insights under the `Bypassed` filter.
+   - `MERGED verygreenboi`. On the Team plan the rule-suites API and rule insights are Enterprise-only (403), so the PR's merged-by field is the record of a bypass.
 
 5. Retire tutela's shadow gate before going live. It posts the same `<!-- jev-gate -->` comment as `github-actions[bot]`, so the two gates would overwrite each other's PR comment.
    Ask Claude to open tutela PR `ci/retire-shadow-gate`. It deletes `.github/workflows/jev-gate.yml` and its tests in `scripts/review-workflow.test.ts`, and keeps `.github/jev-gate.json`.
