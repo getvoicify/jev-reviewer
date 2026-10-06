@@ -18,6 +18,7 @@ const GATE_INPUTS: Record<string, string> = {
   "gate-config-path": ".github/jev-gate.json",
   "trusted-workflow-path": ".github/workflows/jev-gate.yml",
   "trusted-workflow-event": "pull_request_target",
+  "trusted-workflow-required": "true",
   "override-label": "jev-gate:override",
   "override-actors": "verygreenboi",
   "check-name": "jev-gate",
@@ -106,6 +107,7 @@ describe("main: mode dispatch", () => {
     expect(gateCalls[0]?.config.trustedWorkflow).toEqual({
       path: ".github/workflows/jev-gate.yml",
       event: "pull_request_target",
+      required: true,
     });
     expect(gateCalls[0]?.config.overrideActors).toEqual(["verygreenboi"]);
     expect(gateCalls[0]?.context).toEqual({

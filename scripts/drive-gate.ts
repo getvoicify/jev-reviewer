@@ -219,7 +219,11 @@ export async function drive(args: DriveArgs, print: (line: string) => void): Pro
     },
     settings: {
       model: args.model,
-      trustedWorkflow: { path: ".github/workflows/jev-gate.yml", event: "pull_request_target" },
+      trustedWorkflow: {
+        path: ".github/workflows/jev-gate.yml",
+        event: "pull_request_target",
+        required: false,
+      },
       overrideActors: args.overrideActors,
     },
     git,

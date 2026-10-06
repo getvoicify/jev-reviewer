@@ -78,6 +78,14 @@ inputs:
       copy of the workflow could upload forged records.
     required: false
     default: pull_request_target
+  trusted-workflow-required:
+    description: >-
+      Gate mode. "true" when an org ruleset requires the gate workflow:
+      only records from ruleset-required runs are trusted, because a
+      branch can commit a workflow at the same repo-local path. "false"
+      for a gate workflow committed in the repo itself.
+    required: false
+    default: "false"
   override-label:
     description: >-
       Gate mode. The label that accepts a neutral result when an

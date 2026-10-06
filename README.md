@@ -154,6 +154,7 @@ checkout is the PR head and fails otherwise.
 | `gate-config-path` | `.github/jev-gate.json` | Gate config, read from the PR base branch |
 | `trusted-workflow-path` | *(required)* | Workflow path, as workflow runs report it, whose stored records the gate trusts |
 | `trusted-workflow-event` | `pull_request_target` | The only event the gate runs on, and the event a trusted record's run must have. Only `pull_request_target` is accepted: under `pull_request` a PR's own copy of the workflow could upload forged records |
+| `trusted-workflow-required` | `false` | `true` when an org ruleset requires the gate workflow. Only records from ruleset-required runs (`workflow_url` under `/actions/required_workflows/`) are then trusted, since a branch can commit a workflow at the same repo-local path |
 | `override-label` | `jev-gate:override` | Label that accepts a neutral result |
 | `override-actors` | *(empty)* | Newline- or comma-separated logins allowed to override; empty means nobody can |
 | `check-name` | `jev-gate` | Name of the posted check run |

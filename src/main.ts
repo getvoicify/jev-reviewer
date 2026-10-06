@@ -45,6 +45,7 @@ async function runGateMode(deps: MainDeps): Promise<void> {
       gateConfigPath: inputs.get("gate-config-path"),
       trustedWorkflowPath: inputs.get("trusted-workflow-path"),
       trustedWorkflowEvent: inputs.get("trusted-workflow-event"),
+      trustedWorkflowRequired: inputs.get("trusted-workflow-required"),
       overrideLabel: inputs.get("override-label"),
       overrideActors: inputs.get("override-actors"),
       checkName: inputs.get("check-name"),

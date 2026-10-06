@@ -4,7 +4,6 @@ import { parse as parseYaml } from "yaml";
 const WORKFLOW_FILE = ".github/workflows/jev-gate-required.yml";
 const V1_3_0 = "ed390f481d8c724a40e4469936c3ba9fb097974a";
 const CHECKOUT_SHA = "3d3c42e5aac5ba805825da76410c181273ba90b1";
-const UNVERIFIED_TRUSTED_PATH = "unverified-until-the-canary-run";
 
 function expression(body: string): string {
   return `$${"{{"} ${body} }}`;
@@ -95,11 +94,12 @@ describe("the ruleset-required gate workflow", () => {
     });
   });
 
-  test("runs the action in gate mode under its own check name, with no override label actors since a label never starts a required run", async () => {
+  test("runs the action in gate mode under its own check name, trusting only records its own ruleset-required runs uploaded, with no override label actors since a label never starts a required run", async () => {
     expect((await gateJob()).steps[1]?.with).toEqual({
       mode: "gate",
       "typesafe-api-key": expression("secrets.TYPESAFE_API_KEY"),
-      "trusted-workflow-path": UNVERIFIED_TRUSTED_PATH,
+      "trusted-workflow-path": WORKFLOW_FILE,
+      "trusted-workflow-required": "true",
       "check-name": "jev-gate-required",
     });
   });

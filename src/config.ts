@@ -100,6 +100,7 @@ export interface RawGateInputs {
   gateConfigPath: string;
   trustedWorkflowPath: string;
   trustedWorkflowEvent: string;
+  trustedWorkflowRequired: string;
   overrideLabel: string;
   overrideActors: string;
   checkName: string;
@@ -111,7 +112,7 @@ export interface GateModeConfig {
   githubToken: string;
   model: string;
   gateConfigPath: string;
-  trustedWorkflow: { path: string; event: string };
+  trustedWorkflow: { path: string; event: string; required: boolean };
   overrideLabel: string;
   overrideActors: string[];
   checkName: string;
@@ -144,7 +145,14 @@ export function parseGateInputs(
     githubToken: inputs.githubToken,
     model: inputs.model.trim() || "jev-latest",
     gateConfigPath: inputs.gateConfigPath.trim() || ".github/jev-gate.json",
-    trustedWorkflow: { path, event },
+    trustedWorkflow: {
+      path,
+      event,
+      required: parseBool(
+        inputs.trustedWorkflowRequired.trim() || "false",
+        "trusted-workflow-required",
+      ),
+    },
     overrideLabel: inputs.overrideLabel.trim() || "jev-gate:override",
     overrideActors: inputs.overrideActors
       .split(/[\n,]/)
