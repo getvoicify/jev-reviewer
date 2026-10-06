@@ -366,3 +366,35 @@ describe("gateFlags recomputed on reuse", () => {
     ).toBe("success");
   });
 });
+
+describe("lockfiles under the default exclusions", () => {
+  const lockfiles: [string, string][] = [
+    ["apps/orchestrator/uv.lock", "**/uv.lock"],
+    ["poetry.lock", "**/poetry.lock"],
+    ["services/api/Pipfile.lock", "**/Pipfile.lock"],
+    ["crates/core/Cargo.lock", "**/Cargo.lock"],
+    ["go.sum", "**/go.sum"],
+    ["Gemfile.lock", "**/Gemfile.lock"],
+    ["php/composer.lock", "**/composer.lock"],
+    ["apps/mobile/pubspec.lock", "**/pubspec.lock"],
+    ["ios/Podfile.lock", "**/Podfile.lock"],
+    ["mix.lock", "**/mix.lock"],
+    ["android/app/gradle.lockfile", "**/gradle.lockfile"],
+    ["src/Api/packages.lock.json", "**/packages.lock.json"],
+    ["flake.lock", "**/flake.lock"],
+    ["packages/api/bun.lockb", "**/bun.lockb"],
+    ["bun.lock", "**/bun.lock"],
+    ["web/package-lock.json", "**/package-lock.json"],
+    ["web/yarn.lock", "**/yarn.lock"],
+    ["pnpm-lock.yaml", "**/pnpm-lock.yaml"],
+  ];
+
+  for (const [path, pattern] of lockfiles) {
+    test(`excludes ${path} from scoring and still counts it as unreviewed`, () => {
+      const { kept, excluded } = excludePaths([file(path)]);
+      expect(kept).toEqual([]);
+      expect(excluded).toEqual([{ path, pattern }]);
+      expect(gateFlags({ files: kept, excluded }, []).unreviewedExcluded).toBe(1);
+    });
+  }
+});

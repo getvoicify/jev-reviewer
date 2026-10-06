@@ -160,6 +160,14 @@ checkout is the PR head and fails otherwise.
 | `check-name` | `jev-gate` | Name of the posted check run |
 | `comment-author` | `github-actions[bot]` | Login whose gate comment is edited in place |
 
+### Exclusions
+
+By default the gate never sends lockfiles (npm, Yarn, pnpm, Bun, uv, Poetry, Pipenv, Cargo, Go,
+Bundler, Composer, pub, CocoaPods, Mix, Gradle, NuGet, Nix), bundles, generated files or binary assets
+to Jev; `exclude` in the gate config replaces that list. A changed lockfile, bundle or executable is
+still unreviewed, so it makes the verdict neutral and needs the owner's override; only images, fonts,
+media, changelogs, release and census bookkeeping and Drizzle snapshots are excluded without that.
+
 ### Size cap
 
 `maxChangedLines` in the gate config (a positive integer; absent means no cap) caps the added plus
