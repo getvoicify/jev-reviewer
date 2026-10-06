@@ -97,7 +97,7 @@ type Outcome = {
   excludedCount: number;
   record?: EvaluationRecord;
   carried?: RecordOverride;
-  size?: { changedLines: number; limit: number };
+  size?: { addedLines: number; limit: number };
 };
 
 const UNAVAILABLE_CODES: readonly JevErrorCode[] = ["api_error", "connection", "timeout"];
@@ -217,11 +217,11 @@ async function decide(deps: GateDeps, settings: Settings): Promise<Outcome> {
   const size =
     config.maxChangedLines === undefined
       ? undefined
-      : { changedLines: changedLines(diff.files), limit: config.maxChangedLines };
-  if (size !== undefined) io.info(`changed lines: ${size.changedLines} (limit ${size.limit})`);
-  if (size !== undefined && size.changedLines > size.limit) {
+      : { addedLines: addedLines(diff.files), limit: config.maxChangedLines };
+  if (size !== undefined) io.info(`added lines: ${size.addedLines} (limit ${size.limit})`);
+  if (size !== undefined && size.addedLines > size.limit) {
     logSaved(io, false);
-    return settled("neutral", prTooLargeReason(size.changedLines, size.limit), {
+    return settled("neutral", prTooLargeReason(size.addedLines, size.limit), {
       config,
       excludedCount: diff.excluded.length,
       size,
@@ -316,6 +316,10 @@ async function decide(deps: GateDeps, settings: Settings): Promise<Outcome> {
 
 export function changedLines(files: DiffFile[]): number {
   return files.reduce((sum, file) => sum + file.added + file.deleted, 0);
+}
+
+export function addedLines(files: DiffFile[]): number {
+  return files.reduce((sum, file) => sum + file.added, 0);
 }
 
 async function scoreParts(

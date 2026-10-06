@@ -35,8 +35,8 @@ export const UNREVIEWED_EXCLUDED_REASON =
 
 export const NO_GATED_METRIC_REASON = "No gated metric was applicable to a code change";
 
-export const prTooLargeReason = (changedLines: number, limit: number): string =>
-  `PR too large to review: ${changedLines} changed lines in reviewed files, over the limit of ${limit} — split it at a seam`;
+export const prTooLargeReason = (addedLines: number, limit: number): string =>
+  `PR too large to review: ${addedLines} added lines in reviewed files, over the limit of ${limit} — split it at a seam`;
 
 type Assessed = MetricVerdict & { reason: string | null };
 

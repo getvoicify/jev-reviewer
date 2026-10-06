@@ -166,7 +166,7 @@ describe("drive", () => {
     const lines = await printed(driveArgs(checkout(401)));
     expect(lines).toContain("plan: none (decided before planning)");
     expect(lines).toContain(
-      "changed lines in kept files: 401 (limit 400) · kept files: 1 · excluded files: 0",
+      "added lines in kept files: 401 (limit 400) · kept files: 1 · excluded files: 0",
     );
     expect(lines).toContain("jev calls: 0 (stub)");
     expect(lines).toContain("verdict: neutral");
@@ -177,7 +177,7 @@ describe("drive", () => {
     const at = checkout(10, 2000);
     const lines = await printed(driveArgs(at));
     expect(lines).toContain(
-      "changed lines in kept files: 10 (limit 400) · kept files: 1 · excluded files: 1",
+      "added lines in kept files: 10 (limit 400) · kept files: 1 · excluded files: 1",
     );
     expect(lines).toContain("jev calls: 1 (stub)");
     expect(

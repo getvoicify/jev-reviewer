@@ -178,9 +178,9 @@ by the HTTP status and error type when there are any.
 
 ### Size cap
 
-`maxChangedLines` in the gate config (a positive integer; absent means no cap) caps the added plus
-deleted lines in the files the gate reviews, after exclusions, so lockfiles and generated files do
-not count. A larger PR is decided neutral before anything is loaded or scored: no Jev call and no
+`maxChangedLines` in the gate config (a positive integer; absent means no cap) caps the added lines
+in the files the gate reviews, after exclusions, so lockfiles, generated files and pure removals do
+not count. Jev still scores the deletions, and a removal it cannot judge still comes out neutral. A larger PR is decided neutral before anything is loaded or scored: no Jev call and no
 stored record. The owner's override accepts it like any other neutral, on the owner's own `labeled`
 run; because no record is stored, a later label event on that head needs the override again.
 

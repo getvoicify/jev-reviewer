@@ -479,7 +479,7 @@ describe("a stored aggregate re-decided as one partition", () => {
 describe("prTooLargeReason", () => {
   test("names the measured lines and the limit and asks for a split", () => {
     expect(prTooLargeReason(539, 400)).toBe(
-      "PR too large to review: 539 changed lines in reviewed files, over the limit of 400 — split it at a seam",
+      "PR too large to review: 539 added lines in reviewed files, over the limit of 400 — split it at a seam",
     );
   });
 });
